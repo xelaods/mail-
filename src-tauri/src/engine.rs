@@ -18,12 +18,14 @@ use crate::model::*;
 use crate::secrets;
 
 /// 初回同期で取り込む件数
-const WINDOW_INBOX: u32 = 400;
-const WINDOW_OTHER: u32 = 150;
+const WINDOW_INBOX: u32 = 250;
+const WINDOW_OTHER: u32 = 60;
 const MORE_BATCH: usize = 150;
 /// これより大きいメールは開いた時に本文を取りに行く
-const EAGER_BODY_LIMIT: u32 = 2 * 1024 * 1024;
-const FETCH_BATCH: usize = 25;
+const EAGER_BODY_LIMIT: u32 = 600 * 1024;
+const FETCH_BATCH: usize = 40;
+/// 最初のひと塊は小さくして、一覧がすぐに埋まるようにする
+const FIRST_BATCH: usize = 12;
 
 type Slot = Arc<AsyncMutex<Option<Session>>>;
 
@@ -149,6 +151,10 @@ impl Engine {
     }
 
     /// 1つのフォルダを同期する。戻り値は新着（未読）のリスト
+    ///
+    /// 接続を握りっぱなしにしないよう、段階ごとに区切る：
+    /// 1) 一覧とフラグの差分 → 2) 本文を小分けに取得（取るたびに画面へ反映） → 3) 件数
+    /// 区切りの間に、メールを開く・既読にするなどの操作が割り込める。
     pub async fn sync_mailbox(&self, account: &Account, path: &str) -> Result<Vec<NewMail>> {
         let db = self.db.clone();
         let account_id = account.id.clone();
@@ -156,7 +162,8 @@ impl Engine {
         let role = db.mailbox_role(&account_id, path)?;
         let window = if role == "inbox" { WINDOW_INBOX } else { WINDOW_OTHER };
 
-        let (new_mail, changed) = self
+        // 1) 差分を調べる
+        let (fresh, first_sync, validity, uid_next, exists, mut changed) = self
             .with_session(account, |s| {
                 let db = db.clone();
                 let account_id = account_id.clone();
@@ -185,8 +192,6 @@ impl Engine {
 
                     let max_cached = cached.last().copied().unwrap_or(0);
                     let server: HashSet<u32> = metas.iter().map(|m| m.uid).collect();
-
-                    // フラグ変更と削除の反映
                     if !first_sync {
                         for m in metas.iter().filter(|m| m.uid <= max_cached) {
                             changed |= db.sync_flags(&account_id, &path, m.uid, &m.flags)?;
@@ -197,14 +202,33 @@ impl Engine {
                             changed = true;
                         }
                     }
-
-                    // 新着の取り込み（新しい順に）
-                    let mut fresh: Vec<&imap::Meta> = metas.iter().filter(|m| m.uid > max_cached).collect();
+                    let mut fresh: Vec<imap::Meta> = metas.into_iter().filter(|m| m.uid > max_cached).collect();
                     fresh.sort_by(|a, b| b.uid.cmp(&a.uid));
-                    let mut new_mail = Vec::new();
-                    for chunk in fresh.chunks(FETCH_BATCH) {
-                        let full: Vec<u32> = chunk.iter().filter(|m| m.size <= EAGER_BODY_LIMIT).map(|m| m.uid).collect();
-                        let heads: Vec<u32> = chunk.iter().filter(|m| m.size > EAGER_BODY_LIMIT).map(|m| m.uid).collect();
+                    Ok((fresh, first_sync, validity, mb.uid_next.unwrap_or(0), mb.exists, changed))
+                })
+            })
+            .await?;
+
+        if changed {
+            self.changed(&account.id, path, 0);
+        }
+
+        // 2) 新しい順に、小分けで本文を取得
+        let mut new_mail = Vec::new();
+        let mut offset = 0;
+        while offset < fresh.len() {
+            let size = if offset == 0 { FIRST_BATCH } else { FETCH_BATCH };
+            let chunk = &fresh[offset..(offset + size).min(fresh.len())];
+            offset += chunk.len();
+            let full: Vec<u32> = chunk.iter().filter(|m| m.size <= EAGER_BODY_LIMIT).map(|m| m.uid).collect();
+            let heads: Vec<u32> = chunk.iter().filter(|m| m.size > EAGER_BODY_LIMIT).map(|m| m.uid).collect();
+            let raws = self
+                .with_session(account, |s| {
+                    let path = path_s.clone();
+                    let full = full.clone();
+                    let heads = heads.clone();
+                    Box::pin(async move {
+                        imap::select(s, &path).await?;
                         let mut raws: HashMap<u32, (Vec<u8>, bool)> = HashMap::new();
                         for (uid, raw) in imap::fetch_raw(s, &full, false).await? {
                             raws.insert(uid, (raw, true));
@@ -212,34 +236,43 @@ impl Engine {
                         for (uid, raw) in imap::fetch_raw(s, &heads, true).await? {
                             raws.insert(uid, (raw, false));
                         }
-                        for m in chunk {
-                            let Some((raw, has_body)) = raws.remove(&m.uid) else { continue };
-                            let parsed = mime::parse(&raw, has_body);
-                            db.insert_message(&account_id, &path, m.uid, &m.flags, m.size, &parsed)?;
-                            if !first_sync && !m.flags.seen {
-                                new_mail.push(NewMail {
-                                    from: if parsed.from_name.is_empty() { parsed.from_addr.clone() } else { parsed.from_name.clone() },
-                                    subject: parsed.subject.clone(),
-                                });
-                            }
-                            changed = true;
-                        }
-                    }
+                        Ok(raws)
+                    })
+                })
+                .await?;
+            // 解析は接続の外で行う
+            let mut raws = raws;
+            for m in chunk {
+                let Some((raw, has_body)) = raws.remove(&m.uid) else { continue };
+                let parsed = mime::parse(&raw, has_body);
+                db.insert_message(&account_id, path, m.uid, &m.flags, m.size, &parsed)?;
+                if !first_sync && !m.flags.seen {
+                    new_mail.push(NewMail {
+                        from: if parsed.from_name.is_empty() { parsed.from_addr.clone() } else { parsed.from_name.clone() },
+                        subject: parsed.subject.clone(),
+                    });
+                }
+            }
+            changed = true;
+            self.changed(&account.id, path, 0);
+            tokio::task::yield_now().await;
+        }
 
-                    db.set_mailbox_state(&account_id, &path, validity, mb.uid_next.unwrap_or(0))?;
-                    let unseen = s.uid_search("UNSEEN").await.map(|v| v.len() as u32).unwrap_or(0);
-                    db.set_counts(&account_id, &path, unseen, mb.exists)?;
-                    Ok((new_mail, changed))
+        // 3) 状態と件数
+        let unseen = self
+            .with_session(account, |s| {
+                let path = path_s.clone();
+                Box::pin(async move {
+                    imap::select(s, &path).await?;
+                    Ok(s.uid_search("UNSEEN").await.map(|v| v.len() as u32).unwrap_or(0))
                 })
             })
-            .await?;
+            .await
+            .unwrap_or(0);
+        db.set_mailbox_state(&account_id, path, validity, uid_next)?;
+        db.set_counts(&account_id, path, unseen, exists)?;
 
-        if changed || !new_mail.is_empty() {
-            self.changed(&account.id, path, new_mail.len());
-        } else {
-            // 件数だけ変わった可能性があるのでサイドバーは更新させる
-            self.changed(&account.id, path, 0);
-        }
+        self.changed(&account.id, path, if changed { new_mail.len() } else { 0 });
         Ok(new_mail)
     }
 
@@ -297,7 +330,8 @@ impl Engine {
         Ok(added)
     }
 
-    pub async fn sync_account(&self, account: &Account, notify: bool) -> Result<()> {
+    /// `full` が false なら受信トレイだけ（新着プッシュ時）。true なら送信済み・アーカイブと件数も
+    pub async fn sync_account(&self, account: &Account, notify: bool, full: bool) -> Result<()> {
         self.status(&account.id, "syncing", None);
         let result: Result<()> = async {
             if self.db.mailbox_by_role(&account.id, "inbox")?.is_none() {
@@ -311,13 +345,15 @@ impl Engine {
             if notify {
                 self.notify(account, &fresh);
             }
-            // 送信済み・アーカイブは返信スレッドの表示に使うので軽く同期
-            for role in ["sent", "archive"] {
-                if let Some(p) = self.db.mailbox_by_role(&account.id, role)? {
-                    let _ = self.sync_mailbox(account, &p).await;
+            if full {
+                // 送信済み・アーカイブは返信スレッドの表示に使うので軽く同期
+                for role in ["sent", "archive"] {
+                    if let Some(p) = self.db.mailbox_by_role(&account.id, role)? {
+                        let _ = self.sync_mailbox(account, &p).await;
+                    }
                 }
+                let _ = self.refresh_counts(account).await;
             }
-            let _ = self.refresh_counts(account).await;
             Ok(())
         }
         .await;
@@ -365,12 +401,13 @@ impl Engine {
         let acc = account.clone();
         let mut stop = rx.clone();
         tauri::async_runtime::spawn(async move {
-            // 起動直後の同期
-            let _ = engine.sync_account(&acc, false).await;
+            // 起動直後：まず受信トレイだけを急いで、残りはその後
+            let _ = engine.sync_account(&acc, false, false).await;
+            let _ = engine.sync_account(&acc, false, true).await;
             loop {
                 tokio::select! {
                     _ = tokio::time::sleep(Duration::from_secs(5 * 60)) => {
-                        let _ = engine.sync_account(&acc, true).await;
+                        let _ = engine.sync_account(&acc, true, true).await;
                     }
                     _ = stop.changed() => break,
                 }
@@ -386,7 +423,7 @@ impl Engine {
                 }
                 match engine.idle_once(&account, &mut stop).await {
                     Ok(true) => {
-                        let _ = engine.sync_account(&account, true).await;
+                        let _ = engine.sync_account(&account, true, false).await;
                     }
                     Ok(false) => {}
                     Err(_) => {

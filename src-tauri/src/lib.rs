@@ -26,7 +26,7 @@ fn err(e: anyhow::Error) -> String {
 const COLORS: i64 = 6;
 
 #[tauri::command]
-fn list_accounts(state: State<'_, AppState>) -> Res<Vec<Account>> {
+async fn list_accounts(state: State<'_, AppState>) -> Res<Vec<Account>> {
     state.engine.db.accounts().map_err(err)
 }
 
@@ -59,24 +59,24 @@ async fn add_account(state: State<'_, AppState>, input: NewAccount) -> Res<Accou
 }
 
 #[tauri::command]
-fn update_account(state: State<'_, AppState>, id: String, name: String, signature: String, color: i64) -> Res<()> {
+async fn update_account(state: State<'_, AppState>, id: String, name: String, signature: String, color: i64) -> Res<()> {
     state.engine.db.update_account(&id, &name, &signature, color).map_err(err)
 }
 
 #[tauri::command]
-fn remove_account(state: State<'_, AppState>, id: String) -> Res<()> {
+async fn remove_account(state: State<'_, AppState>, id: String) -> Res<()> {
     state.engine.stop_watch(&id);
     secrets::delete_password(&id);
     state.engine.db.delete_account(&id).map_err(err)
 }
 
 #[tauri::command]
-fn list_mailboxes(state: State<'_, AppState>) -> Res<Vec<MailboxInfo>> {
+async fn list_mailboxes(state: State<'_, AppState>) -> Res<Vec<MailboxInfo>> {
     state.engine.db.mailboxes().map_err(err)
 }
 
 #[tauri::command]
-fn list_messages(state: State<'_, AppState>, query: ViewQuery) -> Res<Vec<MessageSummary>> {
+async fn list_messages(state: State<'_, AppState>, query: ViewQuery) -> Res<Vec<MessageSummary>> {
     state.engine.db.list(&query).map_err(err)
 }
 
@@ -110,7 +110,7 @@ async fn sync_all(state: State<'_, AppState>) -> Res<()> {
     let accounts = engine.db.accounts().map_err(err)?;
     let mut errors = Vec::new();
     for a in accounts {
-        if let Err(e) = engine.sync_account(&a, false).await {
+        if let Err(e) = engine.sync_account(&a, false, true).await {
             errors.push(format!("{}: {}", a.email, err(e)));
         }
     }
@@ -170,27 +170,27 @@ async fn open_attachment(app: tauri::AppHandle, state: State<'_, AppState>, id: 
 }
 
 #[tauri::command]
-fn search_contacts(state: State<'_, AppState>, prefix: String) -> Res<Vec<AddressInfo>> {
+async fn search_contacts(state: State<'_, AppState>, prefix: String) -> Res<Vec<AddressInfo>> {
     state.engine.db.contacts(&prefix).map_err(err)
 }
 
 #[tauri::command]
-fn get_setting(state: State<'_, AppState>, key: String) -> Res<Option<String>> {
+async fn get_setting(state: State<'_, AppState>, key: String) -> Res<Option<String>> {
     state.engine.db.setting(&key).map_err(err)
 }
 
 #[tauri::command]
-fn set_setting(state: State<'_, AppState>, key: String, value: String) -> Res<()> {
+async fn set_setting(state: State<'_, AppState>, key: String, value: String) -> Res<()> {
     state.engine.db.set_setting(&key, &value).map_err(err)
 }
 
 #[tauri::command]
-fn is_trusted(state: State<'_, AppState>, addr: String) -> Res<bool> {
+async fn is_trusted(state: State<'_, AppState>, addr: String) -> Res<bool> {
     state.engine.db.trusted(&addr).map_err(err)
 }
 
 #[tauri::command]
-fn set_trusted(state: State<'_, AppState>, addr: String, value: bool) -> Res<()> {
+async fn set_trusted(state: State<'_, AppState>, addr: String, value: bool) -> Res<()> {
     state.engine.db.set_trusted(&addr, value).map_err(err)
 }
 

@@ -1,20 +1,44 @@
-import { useEffect } from "react";
-import { MotionConfig } from "framer-motion";
+import { Suspense, lazy, useEffect, useState } from "react";
+import { AnimatePresence, MotionConfig, motion } from "framer-motion";
+import { useNarrow } from "./hooks/useNarrow";
 import { useStore } from "./lib/store";
 import { useShortcuts } from "./hooks/useShortcuts";
 import { TitleBar } from "./components/TitleBar";
 import { Sidebar } from "./components/Sidebar";
 import { MessageList } from "./components/MessageList";
 import { Reader } from "./components/Reader";
-import { Composer } from "./components/Composer";
 import { Toasts } from "./components/Toasts";
-import { CommandPalette } from "./components/CommandPalette";
-import { AddAccountDialog } from "./components/AddAccountDialog";
-import { SettingsDialog, ShortcutsDialog } from "./components/SettingsDialog";
+import { Welcome } from "./components/Welcome";
+
+// めったに開かない画面は、最初に必要になった時に読み込む（起動を軽くする）
+const Composer = lazy(() => import("./components/Composer").then((m) => ({ default: m.Composer })));
+const CommandPalette = lazy(() => import("./components/CommandPalette").then((m) => ({ default: m.CommandPalette })));
+const AddAccountDialog = lazy(() => import("./components/AddAccountDialog").then((m) => ({ default: m.AddAccountDialog })));
+const SettingsDialog = lazy(() => import("./components/SettingsDialog").then((m) => ({ default: m.SettingsDialog })));
+const ShortcutsDialog = lazy(() => import("./components/SettingsDialog").then((m) => ({ default: m.ShortcutsDialog })));
+
+/** 一度でも true になったら、その後もずっと true（閉じるアニメーションのため描画を残す） */
+function useEver(cond: boolean) {
+  const [ever, setEver] = useState(cond);
+  useEffect(() => {
+    if (cond) setEver(true);
+  }, [cond]);
+  return ever || cond;
+}
 
 export default function App() {
   const init = useStore((s) => s.init);
   const ready = useStore((s) => s.ready);
+  const narrow = useNarrow();
+  const sidebarOpen = useStore((s) => s.sidebarOpen);
+  const setSidebarOpen = useStore((s) => s.setSidebarOpen);
+  const dialog = useStore((s) => s.dialog);
+  const hasComposer = useStore((s) => !!s.composer);
+  const composerEver = useEver(hasComposer);
+  const paletteEver = useEver(dialog === "palette");
+  const addEver = useEver(dialog === "addAccount");
+  const settingsEver = useEver(dialog === "settings");
+  const shortcutsEver = useEver(dialog === "shortcuts");
   useShortcuts();
 
   useEffect(() => {
@@ -43,19 +67,48 @@ export default function App() {
       <div className={`relative z-[1] flex h-full flex-col transition-opacity duration-150 ${ready ? "opacity-100" : "opacity-0"}`}>
         <TitleBar />
         <main className="flex min-h-0 flex-1 gap-2 px-2 pb-2">
-          <Sidebar />
+          {!narrow && <Sidebar />}
           <div className="relative flex min-w-0 flex-1 overflow-hidden rounded-[16px] bg-content shadow-panel">
             <MessageList />
             <Reader />
           </div>
         </main>
       </div>
-      <Composer />
+      {/* 狭いウィンドウでは、サイドバーを上に重ねて出す */}
+      <AnimatePresence>
+        {narrow && sidebarOpen && (
+          <>
+            <motion.div
+              key="scrim"
+              className="fixed inset-0 z-40 bg-black/30"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              onClick={() => setSidebarOpen(false)}
+            />
+            <motion.div
+              key="drawer"
+              className="fixed bottom-2 left-2 top-[48px] z-50 flex"
+              initial={{ x: -260 }}
+              animate={{ x: 0 }}
+              exit={{ x: -260 }}
+              transition={{ type: "spring", stiffness: 420, damping: 40 }}
+            >
+              <Sidebar />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
       <Toasts />
-      <CommandPalette />
-      <AddAccountDialog />
-      <SettingsDialog />
-      <ShortcutsDialog />
+      <Welcome />
+      <Suspense fallback={null}>
+        {composerEver && <Composer />}
+        {paletteEver && <CommandPalette />}
+        {addEver && <AddAccountDialog />}
+        {settingsEver && <SettingsDialog />}
+        {shortcutsEver && <ShortcutsDialog />}
+      </Suspense>
     </MotionConfig>
   );
 }

@@ -37,6 +37,7 @@ function buildDocument(html: string, allowRemote: boolean): { doc: string; block
   const style = parsed.createElement("style");
   style.textContent = `
     html { color-scheme: light; }
+    @media (max-width: 560px) { body { padding: 18px 16px !important; } }
     body { margin: 0; padding: 28px 32px; font-family: "Geist Variable", "Yu Gothic UI", "Hiragino Sans", "Noto Sans JP", "Meiryo UI", system-ui, sans-serif;
       font-size: 14.5px; line-height: 1.8; color: #1d1d1f; background: #ffffff; overflow-wrap: anywhere; word-break: normal; }
     img { max-width: 100%; height: auto; }
@@ -64,15 +65,34 @@ export function HtmlFrame({ html, allowRemote, onBlocked }: { html: string; allo
   useEffect(() => {
     const frame = ref.current;
     if (!frame) return;
-    let ro: ResizeObserver | undefined;
+    const observers: ResizeObserver[] = [];
+    let raf = 0;
     const onLoad = () => {
       const d = frame.contentDocument;
       if (!d) return;
-      const measure = () => setHeight(Math.max(60, d.documentElement.scrollHeight));
-      measure();
-      ro = new ResizeObserver(measure);
-      ro.observe(d.documentElement);
-      d.querySelectorAll("img").forEach((img) => img.addEventListener("load", measure));
+      const root = d.documentElement;
+      // 幅の決め打ちされたメール（600px の表など）は、枠に収まるよう全体を縮小する
+      const fit = () => {
+        cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(() => {
+          root.style.zoom = "1";
+          const avail = frame.clientWidth;
+          const content = Math.max(root.scrollWidth, d.body?.scrollWidth ?? 0);
+          // はみ出している時、右側の余白は scrollWidth に含まれないので足しておく
+          const padRight = d.body ? parseFloat(d.defaultView?.getComputedStyle(d.body).paddingRight ?? "0") || 0 : 0;
+          const natural = content > avail + 1 ? content + padRight : content;
+          const z = natural > avail + 1 ? Math.max(0.35, (avail - 1) / natural) : 1;
+          root.style.zoom = z === 1 ? "" : String(z);
+          setHeight(Math.max(60, Math.ceil(root.getBoundingClientRect().height)));
+        });
+      };
+      fit();
+      const inner = new ResizeObserver(fit);
+      inner.observe(d.body ?? root);
+      const outer = new ResizeObserver(fit);
+      outer.observe(frame);
+      observers.push(inner, outer);
+      d.querySelectorAll("img").forEach((img) => img.addEventListener("load", fit));
       d.addEventListener("click", (e) => {
         const a = (e.target as HTMLElement).closest("a");
         if (!a) return;
@@ -84,7 +104,8 @@ export function HtmlFrame({ html, allowRemote, onBlocked }: { html: string; allo
     frame.addEventListener("load", onLoad);
     return () => {
       frame.removeEventListener("load", onLoad);
-      ro?.disconnect();
+      cancelAnimationFrame(raf);
+      observers.forEach((o) => o.disconnect());
     };
   }, [doc]);
 

@@ -87,6 +87,12 @@ const seeds: Seed[] = [
   },
 
   {
+    acc: "g", box: "INBOX", from: ["オンラインストア", "order@shop.example"], subject: "ご注文の商品を発送しました（注文番号 2026-1028-0412）",
+    ago: 22 * h, seen: true,
+    text: "ご注文の商品を発送しました。",
+    html: `<table width="640" cellpadding="0" cellspacing="0" style="font-family:sans-serif;color:#222;border:1px solid #e5e5ea"><tr><td style="background:#222;color:#fff;padding:18px 24px;font-size:18px;font-weight:bold">オンラインストア</td></tr><tr><td style="padding:24px"><p style="font-size:15px">ご注文の商品を発送しました。</p><table width="592" style="border-collapse:collapse;font-size:14px"><tr><td style="border-bottom:1px solid #eee;padding:8px 0">ワイヤレスマウス（ブラック）</td><td align="right" style="border-bottom:1px solid #eee">¥4,980</td></tr><tr><td style="border-bottom:1px solid #eee;padding:8px 0">USB-C ケーブル 1m</td><td align="right" style="border-bottom:1px solid #eee">¥1,280</td></tr><tr><td style="padding:8px 0;font-weight:bold">合計</td><td align="right" style="font-weight:bold">¥6,260</td></tr></table><p style="font-size:13px;color:#666">お届け予定日：10月30日（金）</p></td></tr></table>`,
+  },
+  {
     acc: "i", box: "INBOX", from: ["田中 健", "ken.tanaka@icloud.example"], subject: "スキー旅行の新幹線パック、申し込みました",
     ago: 1 * d + 2 * h,
     text: "みんなの分まとめて申し込んでおいた！\n2月2日 東京 8:08発 → ガーラ湯沢 9:36着\nレンタルは現地で受け取り。\n\n一人あたりの金額は確定したらまた連絡します。",

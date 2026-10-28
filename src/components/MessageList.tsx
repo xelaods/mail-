@@ -109,7 +109,7 @@ export function MessageList() {
   const isSentView = view.kind === "unified" && view.role === "sent";
 
   return (
-    <section className="relative flex w-[392px] shrink-0 flex-col border-r border-line-subtle max-[1180px]:w-[336px]">
+    <section className="relative flex w-[392px] shrink-0 flex-col border-r border-line-subtle max-[1280px]:w-[340px] max-[980px]:w-[300px]">
       <header className="flex shrink-0 items-end justify-between gap-3 px-5 pb-3 pt-5">
         <div className="min-w-0">
           <h1 className="truncate text-[26px] font-bold leading-[1.15] text-fg">{title}</h1>
@@ -146,7 +146,7 @@ export function MessageList() {
       <div
         ref={parentRef}
         tabIndex={-1}
-        className="msglist relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-2 focus:outline-none"
+        className="msglist relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-2 focus:outline-none focus-visible:outline-none"
         role="listbox"
         aria-label={title}
       >
@@ -228,6 +228,7 @@ const Row = memo(function Row({
   const toggleCheck = useStore((s) => s.toggleCheck);
   const triage = useStore((s) => s.triage);
   const unread = !m.seen;
+  const [hovered, setHovered] = useState(false);
   const who = isSentView ? m.toPreview || "(宛先なし)" : displayName(m.fromName, m.fromAddr);
 
   // トラックパッドの横スワイプ：左へ＝アーカイブ、右へ＝既読/未読
@@ -272,6 +273,8 @@ const Row = memo(function Row({
       aria-selected={selected}
       data-selected={selected}
       onWheel={onWheel}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
       onClick={(e) => {
         if (e.ctrlKey || e.metaKey || e.shiftKey || anyChecked) toggleCheck(m.id, e.shiftKey);
         else select(m.id);
@@ -357,9 +360,10 @@ const Row = memo(function Row({
           </div>
 
           {/* ホバーで出るクイック操作（ガラスのカプセル） */}
+          {hovered && (
           <div
             className={cn(
-              "capsule pointer-events-none absolute right-2.5 flex items-center gap-0.5 rounded-full p-0.5 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100",
+              "capsule absolute right-2.5 flex items-center gap-0.5 rounded-full p-0.5",
               compact ? "top-1/2 -translate-y-1/2" : "top-2",
             )}
             onClick={(e) => e.stopPropagation()}
@@ -377,6 +381,7 @@ const Row = memo(function Row({
               <Star className={m.flagged ? "fill-star text-star" : ""} />
             </IconButton>
           </div>
+          )}
         </div>
 
         {/* 区切り線：本文の頭から右端まで。選択行の上下では消す */}

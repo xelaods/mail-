@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Minus, RefreshCw, Search, Settings2, Square, X } from "lucide-react";
+import { Minus, PanelLeft, RefreshCw, Search, Settings2, Square, X } from "lucide-react";
+import { useNarrow } from "../hooks/useNarrow";
 import { useStore } from "../lib/store";
 import { useShallow } from "zustand/react/shallow";
 import { windowAction } from "../lib/api";
@@ -19,6 +20,9 @@ async function closeWindow() {
 }
 
 export function TitleBar() {
+  const narrow = useNarrow();
+  const sidebarOpen = useStore((s) => s.sidebarOpen);
+  const setSidebarOpen = useStore((s) => s.setSidebarOpen);
   const search = useStore((s) => s.search);
   const setSearch = useStore((s) => s.setSearch);
   const setDialog = useStore((s) => s.setDialog);
@@ -52,7 +56,12 @@ export function TitleBar() {
         if ((e.target as HTMLElement).hasAttribute("data-tauri-drag-region")) windowAction("maximize");
       }}
     >
-      <div data-tauri-drag-region className="flex w-[226px] shrink-0 items-center gap-2.5">
+      <div data-tauri-drag-region className={cn("flex shrink-0 items-center gap-2.5", narrow ? "w-auto" : "w-[226px]")}>
+        {narrow && (
+          <IconButton label="サイドバー" onClick={() => setSidebarOpen(!sidebarOpen)} className="-ml-2">
+            <PanelLeft />
+          </IconButton>
+        )}
         <Logo />
         <span data-tauri-drag-region className="text-[14px] font-semibold tracking-[-0.03em] text-fg">
           Fumi
@@ -62,7 +71,7 @@ export function TitleBar() {
       {/* 検索 — EasyUI iOS-style Search Bar：フォーカスで幅が広がる */}
       <div data-tauri-drag-region className="flex flex-1 justify-center">
         <motion.label
-          animate={{ width: 420 }}
+          animate={{ width: narrow ? 300 : 420 }}
           transition={spring.smooth}
           className={cn(
             "relative flex h-[32px] max-w-full cursor-text items-center gap-2.5 rounded-full border px-3.5 transition-[background,border-color,box-shadow] duration-300",

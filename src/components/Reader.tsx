@@ -51,7 +51,7 @@ export function Reader() {
   const subject = current?.subject || summary?.subject || "(件名なし)";
 
   return (
-    <section className="relative flex min-w-0 flex-1 flex-col">
+    <section className="@container relative flex min-w-0 flex-1 flex-col">
       <Toolbar current={current} scrolled={scrolled} subject={subject} />
 
       {/* スクロールの縁：ツールバーの下で本文が柔らかくぼけて消える */}
@@ -63,8 +63,6 @@ export function Reader() {
         )}
         style={{
           background: "linear-gradient(to bottom, var(--content) 30%, color-mix(in srgb, var(--content) 60%, transparent) 70%, transparent)",
-          backdropFilter: "blur(10px)",
-          WebkitBackdropFilter: "blur(10px)",
           maskImage: "linear-gradient(to bottom, black 45%, transparent)",
           WebkitMaskImage: "linear-gradient(to bottom, black 45%, transparent)",
         }}
@@ -78,9 +76,9 @@ export function Reader() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, transition: { duration: 0.05 } }}
             transition={{ duration: 0.12 }}
-            className="relative mx-auto w-full max-w-[860px] px-10 pb-16 pt-[72px]"
+            className="relative mx-auto w-full max-w-[860px] px-5 pb-16 pt-[68px] @min-[640px]:px-10 @min-[640px]:pt-[72px]"
           >
-            <h2 className="selectable text-[28px] font-bold leading-[1.4] text-fg">{subject}</h2>
+            <h2 className="selectable text-[22px] font-bold leading-[1.4] text-fg @min-[640px]:text-[28px]">{subject}</h2>
             <div className="mt-2.5 flex flex-wrap items-center gap-3 text-[12.5px] text-fg-3">
               {account && (
                 <span className="inline-flex items-center gap-1.5">
@@ -126,8 +124,8 @@ export function Reader() {
 /* ツールバー：役割ごとにまとめたガラスのカプセル                         */
 /* ------------------------------------------------------------------ */
 
-function Capsule({ children }: { children: ReactNode }) {
-  return <div className="capsule flex items-center gap-0.5 rounded-full p-[3px]">{children}</div>;
+function Capsule({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={cn("capsule flex items-center gap-0.5 rounded-full p-[3px]", className)}>{children}</div>;
 }
 
 function Toolbar({ current, scrolled, subject }: { current?: MessageDetail; scrolled: boolean; subject: string }) {
@@ -141,8 +139,8 @@ function Toolbar({ current, scrolled, subject }: { current?: MessageDetail; scro
   const btn = "rounded-full";
 
   return (
-    <div className="absolute inset-x-0 top-0 z-20 flex h-[60px] items-center gap-2 px-4">
-      <Capsule>
+    <div className="absolute inset-x-0 top-0 z-20 flex h-[60px] items-center gap-2 px-3 @min-[640px]:px-4">
+      <Capsule className="hidden @min-[520px]:flex">
         <IconButton className={btn} label="前のメール" shortcut="K" onClick={() => moveSelection(-1)}>
           <ChevronUp />
         </IconButton>
@@ -181,11 +179,13 @@ function Toolbar({ current, scrolled, subject }: { current?: MessageDetail; scro
         <IconButton className={btn} label={role === "trash" ? "完全に削除" : "削除"} shortcut="#" onClick={() => triage("trash")}>
           <Trash2 />
         </IconButton>
-        <IconButton className={btn} label="迷惑メール" shortcut="!" onClick={() => triage("junk")}>
-          <ShieldAlert />
-        </IconButton>
+        <span className="hidden @min-[700px]:contents">
+          <IconButton className={btn} label="迷惑メール" shortcut="!" onClick={() => triage("junk")}>
+            <ShieldAlert />
+          </IconButton>
+        </span>
       </Capsule>
-      <Capsule>
+      <Capsule className="hidden @min-[600px]:flex">
         <IconButton className={btn} label="未読にする" shortcut="U" onClick={() => triage("unread")}>
           <Mail />
         </IconButton>

@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS idx_messages_view ON messages(account_id, mailbox, date DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(account_id, thread_key);
 CREATE INDEX IF NOT EXISTS idx_messages_date ON messages(date DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_mid ON messages(account_id, message_id);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(subject, people, body, tokenize = 'trigram');
 
@@ -619,7 +620,8 @@ impl Db {
 
         let mut where_: Vec<String> = Vec::new();
         let mut args: Vec<rusqlite::types::Value> = Vec::new();
-        let role_of = "(SELECT role FROM mailboxes b WHERE b.account_id=m.account_id AND b.path=m.mailbox)";
+        // メールボックスの役割は JOIN で引く（行ごとの副問い合わせは件数が増えると重い）
+        let role_of = "b.role";
 
         if q.kind == "mailbox" {
             where_.push("m.account_id = ?".into());
@@ -677,7 +679,8 @@ impl Db {
                SELECT m.*, ROW_NUMBER() OVER (
                  PARTITION BY m.account_id, CASE WHEN m.message_id='' THEN 'id:'||m.id ELSE m.message_id END
                  ORDER BY CASE {role_of} WHEN 'inbox' THEN 0 WHEN 'all' THEN 2 ELSE 1 END) AS dup
-               FROM messages m WHERE {where_sql}
+               FROM messages m LEFT JOIN mailboxes b ON b.account_id = m.account_id AND b.path = m.mailbox
+               WHERE {where_sql}
              ),
              t AS (
                SELECT v.*,

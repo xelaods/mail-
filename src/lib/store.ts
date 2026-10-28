@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api, onEvent } from "./api";
+import { api, isTauri, onEvent } from "./api";
 import type {
   Account,
   MailboxInfo,
@@ -88,6 +88,12 @@ interface State {
   toasts: Toast[];
   settings: Settings;
   dialog: null | "addAccount" | "settings" | "palette" | "shortcuts";
+  /** 狭いウィンドウでサイドバーを重ねて表示しているか */
+  sidebarOpen: boolean;
+  /** 初めて起動した時だけ true（ようこそ画面を出す） */
+  firstRun: boolean;
+  finishWelcome: () => void;
+  setSidebarOpen: (v: boolean) => void;
 
   init: () => Promise<void>;
   reloadMeta: () => Promise<void>;
@@ -155,6 +161,14 @@ export const useStore = create<State>((set, get) => ({
   toasts: [],
   settings: defaultSettings,
   dialog: null,
+  sidebarOpen: false,
+  firstRun: false,
+  finishWelcome: () => {
+    set({ firstRun: false });
+    api.setSetting("welcomed", "1").catch(() => undefined);
+    if (get().accounts.length === 0) set({ dialog: "addAccount" });
+  },
+  setSidebarOpen: (v) => set({ sidebarOpen: v }),
 
   init: async () => {
     if (initialized) return;
@@ -169,9 +183,11 @@ export const useStore = create<State>((set, get) => ({
     applyTheme(get().settings.theme);
     window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => applyTheme(get().settings.theme));
 
-    await get().reloadMeta();
-    set({ ready: true });
-    if (get().accounts.length === 0) set({ dialog: "addAccount" });
+    const [welcomed] = await Promise.all([api.getSetting("welcomed").catch(() => "1"), get().reloadMeta()]);
+    const forced = !isTauri && new URLSearchParams(location.search).has("welcome");
+    const firstRun = forced || (!welcomed && get().accounts.length === 0);
+    set({ ready: true, firstRun });
+    if (!firstRun && get().accounts.length === 0) set({ dialog: "addAccount" });
     await get().refreshList();
 
     let pending: number | undefined;
@@ -193,7 +209,7 @@ export const useStore = create<State>((set, get) => ({
 
   setView: (v) => {
     pageLimit = PAGE;
-    set({ view: v, selectedId: null, thread: null, checked: new Set(), messages: [], listLoading: true });
+    set({ view: v, selectedId: null, thread: null, checked: new Set(), messages: [], listLoading: true, sidebarOpen: false });
     get().refreshList();
     if (v.kind === "mailbox") {
       api.syncMailbox(v.accountId, v.path).catch((e) =>
