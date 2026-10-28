@@ -1,0 +1,205 @@
+@import "tailwindcss";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/jetbrains-mono";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+   EasyUI のデザイントークン（easyui.site / tokens.css）をそのまま採用。
+   :root がライト、.dark がダーク。
+   --------------------------------------------------------------------------- */
+:root {
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --surface-hover: #f4f4f5;
+  --surface-raised: #f1f1f2;
+  --border: #e4e4e7;
+  --border-hover: #d4d4d8;
+  --border-subtle: #ededef;
+  --text-primary: #0a0a0a;
+  --text-secondary: #52525b;
+  --text-muted: #71717a;
+  --text-subtle: #a1a1aa;
+  --accent: #0a0a0a;
+  --accent-fg: #fafafa;
+  --accent-subtle: rgba(10, 10, 10, 0.05);
+  --accent-glow: rgba(10, 10, 10, 0.06);
+  --accent-ring: rgba(10, 10, 10, 0.15);
+  --indicator: #3b82f6;
+  --pill: rgba(10, 10, 10, 0.055);
+  --pill-active: rgba(10, 10, 10, 0.085);
+  --paper: #ffffff;
+  --paper-edge: rgba(15, 15, 20, 0.07);
+  --shadow-subtle: 0 1px 2px 0 rgba(15, 15, 20, 0.06), 0 0 0 1px rgba(15, 15, 20, 0.04);
+  --shadow-elevated: 0 10px 25px -8px rgba(15, 15, 20, 0.12), 0 0 0 1px rgba(15, 15, 20, 0.05);
+  --shadow-float: 0 24px 60px -12px rgba(15, 15, 20, 0.25), 0 0 0 1px rgba(15, 15, 20, 0.06);
+  --danger: #dc2626;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #111113;
+  --surface: #1c1c1f;
+  --surface-hover: #202023;
+  --surface-raised: #18181a;
+  --border: #29292c;
+  --border-hover: #343438;
+  --border-subtle: #1f1f22;
+  --text-primary: #f2f2f3;
+  --text-secondary: #a1a1a6;
+  --text-muted: #6f6f75;
+  --text-subtle: #4d4d52;
+  --accent: #f2f2f3;
+  --accent-fg: #111113;
+  --accent-subtle: rgba(242, 242, 243, 0.06);
+  --accent-glow: rgba(242, 242, 243, 0.08);
+  --accent-ring: rgba(242, 242, 243, 0.2);
+  --indicator: #3b82f6;
+  --pill: rgba(242, 242, 243, 0.045);
+  --pill-active: rgba(242, 242, 243, 0.08);
+  --paper: #ffffff;
+  --paper-edge: rgba(0, 0, 0, 0.4);
+  --shadow-subtle: 0 1px 2px 0 rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(242, 242, 243, 0.02);
+  --shadow-elevated: 0 10px 25px -8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(242, 242, 243, 0.04);
+  --shadow-float: 0 24px 60px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(242, 242, 243, 0.06);
+  --danger: #f87171;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-raised: var(--surface-raised);
+  --color-line: var(--border);
+  --color-line-hover: var(--border-hover);
+  --color-line-subtle: var(--border-subtle);
+  --color-fg: var(--text-primary);
+  --color-fg-2: var(--text-secondary);
+  --color-fg-3: var(--text-muted);
+  --color-fg-4: var(--text-subtle);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-indicator: var(--indicator);
+  --color-pill: var(--pill);
+  --color-pill-active: var(--pill-active);
+  --color-danger: var(--danger);
+  --font-sans: "Geist Variable", "Yu Gothic UI", "Hiragino Sans", "Noto Sans JP", "Meiryo UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", "Cascadia Mono", ui-monospace, monospace;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --shadow-subtle: var(--shadow-subtle);
+  --shadow-elevated: var(--shadow-elevated);
+  --shadow-float: var(--shadow-float);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  letter-spacing: -0.011em;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "palt" 1;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+textarea,
+[contenteditable="true"],
+.selectable {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* 枠のない入力欄はリングを出さない（コンテナ側で状態を示す） */
+input:focus-visible,
+textarea:focus-visible {
+  outline: none;
+}
+
+/* EasyUI の focus-ring：キーボード操作時だけ表示 */
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 2px solid rgba(56, 189, 248, 0.5);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 一覧の未読ドット：ゆっくり明滅（EasyUI pulse-subtle） */
+@keyframes pulse-subtle {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-raised);
+  border-radius: 6px;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, var(--accent-glow), transparent);
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
