@@ -21,7 +21,7 @@ import { useStore } from "../lib/store";
 import type { Account, MailboxInfo, Role, View } from "../lib/types";
 import { accountColor } from "../lib/format";
 import { spring } from "../lib/motion";
-import { cn } from "./ui";
+import { RollingNumber, cn } from "./ui";
 
 const roleIcon: Record<string, ReactNode> = {
   inbox: <Inbox />,
@@ -115,18 +115,19 @@ export function Sidebar() {
   );
 
   return (
-    <nav className="flex w-[236px] shrink-0 flex-col border-r border-line-subtle bg-bg-deep/40">
-      <div className="px-3 pb-3 pt-3.5">
+    <nav className="liquid flex w-[232px] shrink-0 flex-col overflow-hidden rounded-[18px]">
+      <div className="px-2.5 pb-2 pt-2.5">
         <motion.button
           whileTap={{ scale: 0.97 }}
           transition={spring.snappy}
           onClick={() => openComposer("new")}
-          className="group relative flex h-10 w-full cursor-default items-center gap-2.5 overflow-hidden rounded-xl bg-accent px-3.5 text-[13px] font-medium text-accent-fg shadow-[0_10px_30px_-10px_var(--accent-glow),0_0_24px_-6px_var(--accent-glow)] transition-[filter] duration-300 hover:brightness-[1.06]"
+          className="group flex h-9 w-full cursor-default items-center gap-2.5 rounded-[10px] px-2.5 text-[13px] font-medium text-fg transition-colors duration-200 hover:bg-pill-active"
         >
-          <PenLine className="size-4" />
-          <span className="flex-1 text-left">メールを作成</span>
-          <span className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-white/25 to-transparent opacity-0 transition-all duration-700 group-hover:left-[120%] group-hover:opacity-100" />
-          <kbd className="rounded border border-current/20 px-1 font-mono text-[10px] opacity-50">C</kbd>
+          <span className="grid size-6 place-items-center rounded-[7px] bg-blue text-white shadow-[0_2px_8px_-2px_var(--blue)]">
+            <PenLine className="size-3.5" strokeWidth={2} />
+          </span>
+          <span className="flex-1 text-left">新規メッセージ</span>
+          <kbd className="font-mono text-[10px] text-fg-4 transition-colors group-hover:text-fg-3">C</kbd>
         </motion.button>
       </div>
 
@@ -138,7 +139,7 @@ export function Sidebar() {
         <AnimatePresence>
           {hover && (
             <motion.div
-              className="pointer-events-none absolute inset-x-2 rounded-lg bg-pill"
+              className="pointer-events-none absolute inset-x-2 rounded-[8px] bg-pill"
               initial={{ opacity: 0, top: hover.top, height: hover.height }}
               animate={{ opacity: 1, top: hover.top, height: hover.height }}
               exit={{ opacity: 0 }}
@@ -147,6 +148,7 @@ export function Sidebar() {
           )}
         </AnimatePresence>
 
+        <p className="px-2.5 pb-1 pt-2 text-[11px] font-semibold text-fg-3">メールボックス</p>
         <div className="space-y-px">
           {item("u:inbox:", { kind: "unified", role: "inbox" }, "すべての受信", <Inbox />, inboxUnread)}
           {item("u:unread:", { kind: "unified", role: "unread" }, "未読", <Mail />)}
@@ -160,13 +162,13 @@ export function Sidebar() {
           const isCollapsed = collapsed[a.id];
           const st = sync[a.id];
           return (
-            <section key={a.id} className="mt-5">
+            <section key={a.id} className="mt-4">
               <button
                 onClick={() => setCollapsed({ ...collapsed, [a.id]: !isCollapsed })}
                 className="group relative z-10 flex w-full cursor-default items-center gap-2 rounded-md px-2.5 pb-1.5 pt-1 text-left"
               >
                 <span className="size-[7px] shrink-0 rounded-full" style={{ background: accountColor(a) }} />
-                <span className="min-w-0 flex-1 truncate text-[11.5px] tracking-[0.02em] text-fg-3 transition-colors group-hover:text-fg-2" title={a.email}>
+                <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-fg-3 transition-colors group-hover:text-fg-2" title={a.email}>
                   {a.email}
                 </span>
                 {st?.state === "syncing" && <span className="breathe size-1.5 rounded-full bg-fg-3" />}
@@ -210,7 +212,7 @@ export function Sidebar() {
         })}
       </div>
 
-      <div className="border-t border-line-subtle p-2">
+      <div className="p-2">
         <button
           onClick={() => setDialog("addAccount")}
           className="flex h-8 w-full cursor-default items-center gap-2.5 rounded-lg px-2.5 text-[13px] text-fg-3 transition-colors hover:bg-pill hover:text-fg"
@@ -251,25 +253,25 @@ function NavItem({
         onHover({ top: el.offsetTop, height: el.offsetHeight });
       }}
       className={cn(
-        "relative flex h-8 w-full cursor-default items-center gap-2.5 rounded-lg px-2.5 text-[13px] transition-colors duration-150",
-        active ? "font-medium text-fg" : "text-fg-2 hover:text-fg",
+        "relative flex h-[30px] w-full cursor-default items-center gap-2.5 rounded-[8px] px-2.5 text-[13px] text-fg transition-colors duration-150",
+        active && "font-medium",
       )}
     >
       {active && (
         <motion.span
           layoutId="nav-active"
           transition={spring.morph}
-          className="hairline-top absolute inset-0 rounded-lg border border-line-subtle bg-pill-active"
+          className="absolute inset-0 rounded-[8px] bg-pill-active shadow-[inset_0_0.5px_0_var(--highlight)]"
         />
       )}
-      <span className={cn("relative grid size-4 shrink-0 place-items-center [&>svg]:size-4", active ? "text-fg" : "text-fg-3")}>
+      <span className="relative grid size-4 shrink-0 place-items-center text-blue [&>svg]:size-[17px]">
         {icon}
       </span>
       {dot && <span className="relative size-1.5 rounded-full" style={{ background: dot }} />}
       <span className="relative min-w-0 flex-1 truncate text-left">{label}</span>
       {!!count && count > 0 && (
-        <span className={cn("relative min-w-5 rounded-full px-1.5 text-center text-[11px] leading-[18px] tabular", active ? "bg-fg/10 text-fg" : "text-fg-3")}>
-          {count > 999 ? "999+" : count}
+        <span className="relative text-[12px] text-fg-3">
+          <RollingNumber value={Math.min(count, 999)} />
         </span>
       )}
     </button>

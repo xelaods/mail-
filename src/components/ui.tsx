@@ -110,7 +110,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   ref,
 ) {
   const variants: Record<Variant, string> = {
-    primary: "bg-accent text-accent-fg hover:opacity-90 shadow-[0_0_20px_-3px_var(--accent-glow)]",
+    primary: "bg-blue text-white shadow-[0_6px_20px_-8px_var(--blue)] hover:brightness-110",
     secondary: "bg-surface-raised text-fg border border-line hover:border-line-hover hover:bg-surface-hover",
     outline: "border border-line text-fg hover:border-line-hover hover:bg-pill",
     ghost: "text-fg-2 hover:text-fg hover:bg-pill",
@@ -299,13 +299,13 @@ export function Switch({ checked, onChange, label }: { checked: boolean; onChang
       onPointerLeave={() => setPressed(false)}
       className={cn(
         "relative inline-flex h-[22px] w-[38px] shrink-0 cursor-default items-center rounded-full border transition-colors duration-200",
-        checked ? "border-transparent bg-accent" : "border-line bg-surface-raised",
+        checked ? "border-transparent bg-green" : "border-line bg-pill-active",
       )}
     >
       <motion.span
         layout
         transition={spring.snappy}
-        className={cn("absolute top-[2px] h-4 rounded-full shadow-sm", checked ? "bg-accent-fg" : "bg-fg-3")}
+        className="absolute top-[2px] h-4 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.3)]"
         style={{ left: checked ? undefined : 2, right: checked ? 2 : undefined }}
         animate={{ width: pressed ? 20 : 16 }}
       />
@@ -367,3 +367,31 @@ export function Field({ label, hint, children }: { label: string; hint?: ReactNo
 
 export const inputClass =
   "h-9 w-full rounded-lg border border-line bg-surface-raised px-3 text-[13px] text-fg placeholder:text-fg-4 transition-colors focus:border-line-hover focus:bg-surface focus:outline-none";
+
+/* ------------------------------------------------------------------ */
+/* RollingNumber — EasyUI Animated Number：桁ごとに転がって変わる          */
+/* ------------------------------------------------------------------ */
+
+export function RollingNumber({ value, className }: { value: number; className?: string }) {
+  const digits = String(value).split("");
+  return (
+    <span className={cn("inline-flex overflow-hidden tabular", className)} aria-label={String(value)}>
+      {digits.map((d, i) => (
+        <span key={digits.length - i} className="relative inline-block h-[1.2em] w-[0.62em] overflow-hidden text-center leading-[1.2em]">
+          <AnimatePresence initial={false} mode="popLayout">
+            <motion.span
+              key={d}
+              className="absolute inset-0"
+              initial={{ y: "-100%", opacity: 0, filter: "blur(2px)" }}
+              animate={{ y: "0%", opacity: 1, filter: "blur(0px)" }}
+              exit={{ y: "100%", opacity: 0, filter: "blur(2px)" }}
+              transition={spring.snappy}
+            >
+              {d}
+            </motion.span>
+          </AnimatePresence>
+        </span>
+      ))}
+    </span>
+  );
+}

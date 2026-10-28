@@ -47,12 +47,12 @@ export function TitleBar() {
   return (
     <header
       data-tauri-drag-region
-      className="glass relative z-30 flex h-[46px] shrink-0 items-center gap-3 border-b border-line-subtle pl-4"
+      className="relative z-30 flex h-[48px] shrink-0 items-center gap-3 pl-5"
       onDoubleClick={(e) => {
         if ((e.target as HTMLElement).hasAttribute("data-tauri-drag-region")) windowAction("maximize");
       }}
     >
-      <div data-tauri-drag-region className="flex w-[218px] shrink-0 items-center gap-2.5">
+      <div data-tauri-drag-region className="flex w-[226px] shrink-0 items-center gap-2.5">
         <Logo />
         <span data-tauri-drag-region className="text-[14px] font-semibold tracking-[-0.03em] text-fg">
           Fumi
@@ -67,11 +67,11 @@ export function TitleBar() {
           className={cn(
             "relative flex h-[32px] max-w-full cursor-text items-center gap-2.5 rounded-full border px-3.5 transition-[background,border-color,box-shadow] duration-300",
             focused
-              ? "border-line-hover bg-surface shadow-[0_0_0_4px_var(--pill),0_12px_32px_-12px_rgba(0,0,0,0.5)]"
-              : "border-line bg-pill hover:border-line-hover",
+              ? "capsule border-transparent shadow-[0_0_0_3.5px_color-mix(in_srgb,var(--blue)_35%,transparent)]"
+              : "capsule border-transparent",
           )}
         >
-          <Search className="size-3.5 shrink-0 text-fg-3" />
+          <Search className="size-[15px] shrink-0 text-fg-3" />
           <input
             ref={ref}
             value={value}

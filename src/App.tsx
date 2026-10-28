@@ -73,13 +73,19 @@ export default function App() {
 
   return (
     <MotionConfig reducedMotion="user">
-      <div className="ambient" />
+      <div className="wallpaper" />
       <div className="relative z-[1] flex h-full flex-col">
         {pane(0, "relative z-30", <TitleBar />)}
-        <main className="flex min-h-0 flex-1">
+        <main className="flex min-h-0 flex-1 gap-2 px-2 pb-2">
           {pane(0.05, "flex", <Sidebar />)}
-          {pane(0.12, "flex", <MessageList />)}
-          {pane(0.2, "flex min-w-0 flex-1", <Reader />)}
+          {pane(
+            0.12,
+            "relative flex min-w-0 flex-1 overflow-hidden rounded-[16px] bg-content shadow-panel",
+            <>
+              <MessageList />
+              <Reader />
+            </>,
+          )}
         </main>
       </div>
       <Composer />
@@ -88,7 +94,6 @@ export default function App() {
       <AddAccountDialog />
       <SettingsDialog />
       <ShortcutsDialog />
-      <div className="grain" aria-hidden />
       {!introDone && <Intro ready={ready} onDone={() => setIntroDone(true)} />}
     </MotionConfig>
   );

@@ -9,7 +9,7 @@ import { Kbd, cn } from "./ui";
 export function Toasts() {
   const toasts = useStore((s) => s.toasts);
   return (
-    <div className="pointer-events-none fixed bottom-5 left-1/2 z-[70] flex -translate-x-1/2 flex-col-reverse items-center gap-2">
+    <div className="pointer-events-none fixed left-1/2 top-[56px] z-[70] flex -translate-x-1/2 flex-col items-center gap-2">
       <AnimatePresence initial={false}>
         {toasts.map((t, i) => (
           <ToastCard key={t.id} t={t} latest={i === toasts.length - 1} />
@@ -74,15 +74,15 @@ function ToastCard({ t, latest }: { t: Toast; latest: boolean }) {
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 24, scale: 0.94 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 8, scale: 0.94, transition: { duration: 0.16 } }}
+      initial={{ opacity: 0, y: -18, scale: 0.6, filter: "blur(6px)" }}
+      animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+      exit={{ opacity: 0, y: -12, scale: 0.8, filter: "blur(4px)", transition: { duration: 0.2 } }}
       transition={spring.responsive}
       onPointerEnter={() => setPaused(true)}
       onPointerLeave={() => setPaused(false)}
       role="status"
       aria-live="polite"
-      className="pointer-events-auto relative flex min-w-[320px] max-w-[520px] items-center gap-3 overflow-hidden rounded-[14px] border border-line bg-surface py-2.5 pl-3.5 pr-2 shadow-float"
+      className="capsule pointer-events-auto relative flex min-w-[320px] max-w-[520px] items-center gap-3 overflow-hidden rounded-[18px] py-2.5 pl-4 pr-2"
     >
       {icon && <span className="grid size-7 shrink-0 place-items-center rounded-lg border border-line-subtle bg-surface-raised">{icon}</span>}
       <div className="min-w-0 flex-1">
@@ -95,9 +95,9 @@ function ToastCard({ t, latest }: { t: Toast; latest: boolean }) {
             done.current = true;
             resolve(t.id, "undo");
           }}
-          className="inline-flex h-7 cursor-default items-center gap-1.5 rounded-md border border-line bg-surface-raised px-2.5 text-xs font-medium text-fg transition-colors hover:border-line-hover"
+          className="inline-flex h-7 cursor-default items-center gap-1.5 rounded-full px-3 text-xs font-semibold text-blue transition-colors hover:bg-[color-mix(in_srgb,var(--blue)_12%,transparent)]"
         >
-          <Undo2 className="size-3.5 text-fg-2" />
+          <Undo2 className="size-3.5" />
           取り消す
           {latest && <Kbd className="ml-0.5 h-4">Ctrl Z</Kbd>}
         </button>
@@ -114,7 +114,7 @@ function ToastCard({ t, latest }: { t: Toast; latest: boolean }) {
       </button>
       {t.commit && (
         <div className="absolute inset-x-0 bottom-0 h-[2px] bg-line-subtle">
-          <div className="h-full bg-fg-2" style={{ width: `${progress * 100}%` }} />
+          <div className="h-full bg-blue" style={{ width: `${progress * 100}%` }} />
         </div>
       )}
     </motion.div>

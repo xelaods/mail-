@@ -71,12 +71,12 @@ export function Composer() {
         transition={spring.smooth}
         onKeyDown={onKeyDown}
         className={cn(
-          "fixed z-40 flex flex-col overflow-hidden border border-line bg-surface shadow-float",
+          "fixed z-40 flex flex-col overflow-hidden bg-surface shadow-float",
           c.minimized
-            ? "bottom-0 right-6 h-11 w-[340px] rounded-t-[14px] border-b-0"
+            ? "bottom-0 right-6 h-11 w-[340px] rounded-t-[16px]"
             : c.expanded
-              ? "bottom-[6vh] left-1/2 top-[10vh] w-[min(860px,calc(100vw-64px))] -translate-x-1/2 rounded-[20px]"
-              : "bottom-5 right-6 h-[min(600px,calc(100vh-96px))] w-[580px] rounded-[20px]",
+              ? "bottom-[6vh] left-1/2 top-[10vh] w-[min(860px,calc(100vw-64px))] -translate-x-1/2 rounded-[22px]"
+              : "bottom-5 right-6 h-[min(600px,calc(100vh-96px))] w-[580px] rounded-[22px]",
         )}
         role="dialog"
         aria-label={title}

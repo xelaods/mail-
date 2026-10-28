@@ -77,6 +77,8 @@ interface State {
   listLoading: boolean;
   hasMore: boolean;
   hidden: Set<number>;
+  /** 一覧から滑って消えていく途中のメール */
+  leaving: Map<number, "left" | "right">;
   selectedId: number | null;
   checked: Set<number>;
   thread: MessageDetail[] | null;
@@ -143,6 +145,7 @@ export const useStore = create<State>((set, get) => ({
   listLoading: true,
   hasMore: false,
   hidden: new Set(),
+  leaving: new Map(),
   selectedId: null,
   checked: new Set(),
   thread: null,
@@ -337,9 +340,20 @@ export const useStore = create<State>((set, get) => ({
       : state.selectedId;
 
     const targets = expand(ids);
-    const hidden = new Set(state.hidden);
-    ids.forEach((i) => hidden.add(i));
-    set({ hidden, checked: new Set() });
+    // まず行を横へ滑らせ、消え終わってから一覧から外す（下の行が詰まってくる）
+    const leaving = new Map(state.leaving);
+    const dir = action === "inbox" ? "right" : "left";
+    ids.forEach((i) => leaving.set(i, dir));
+    set({ leaving, checked: new Set() });
+    window.setTimeout(() => {
+      const l = new Map(get().leaving);
+      const hidden = new Set(get().hidden);
+      ids.forEach((i) => {
+        l.delete(i);
+        hidden.add(i);
+      });
+      set({ leaving: l, hidden });
+    }, 230);
     if (nextSel !== state.selectedId) get().select(nextSel);
 
     const label = { archive: "アーカイブしました", trash: "ゴミ箱に移動しました", junk: "迷惑メールに移動しました", inbox: "受信トレイに戻しました" }[action];

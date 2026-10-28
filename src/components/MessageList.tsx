@@ -1,11 +1,10 @@
-import { memo, useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { AnimatePresence, motion, useMotionTemplate, useMotionValue } from "framer-motion";
+import { AnimatePresence, animate, motion, useMotionValue, useTransform } from "framer-motion";
 import {
   Archive,
   ArchiveRestore,
-  Check,
-  Inbox,
+  ListFilter,
   Mail,
   MailOpen,
   Paperclip,
@@ -13,12 +12,13 @@ import {
   Star,
   Trash2,
   X,
+  Inbox,
 } from "lucide-react";
 import { useStore } from "../lib/store";
 import type { Account, MessageSummary, View } from "../lib/types";
 import { accountColor, displayName, listDate } from "../lib/format";
 import { spring } from "../lib/motion";
-import { Avatar, IconButton, Spinner, cn } from "./ui";
+import { Avatar, IconButton, RollingNumber, Spinner, Tooltip, cn } from "./ui";
 
 function viewTitle(view: View, accounts: Account[], mailboxName?: string): string {
   if (view.kind === "mailbox") {
@@ -26,10 +26,10 @@ function viewTitle(view: View, accounts: Account[], mailboxName?: string): strin
     return mailboxName ?? acc?.email ?? "";
   }
   return {
-    inbox: "すべての受信",
+    inbox: "受信",
     unread: "未読",
     flagged: "スター付き",
-    attachments: "添付ファイルあり",
+    attachments: "添付ファイル",
     sent: "送信済み",
     archive: "アーカイブ",
     trash: "ゴミ箱",
@@ -41,6 +41,7 @@ function viewTitle(view: View, accounts: Account[], mailboxName?: string): strin
 export function MessageList() {
   const messages = useStore((s) => s.messages);
   const hidden = useStore((s) => s.hidden);
+  const leaving = useStore((s) => s.leaving);
   const loading = useStore((s) => s.listLoading);
   const hasMore = useStore((s) => s.hasMore);
   const view = useStore((s) => s.view);
@@ -51,22 +52,17 @@ export function MessageList() {
   const checked = useStore((s) => s.checked);
   const settings = useStore((s) => s.settings);
   const loadMore = useStore((s) => s.loadMore);
+  const [unreadOnly, setUnreadOnly] = useState(false);
 
-  const items = useMemo(() => messages.filter((m) => !hidden.has(m.id)), [messages, hidden]);
+  useEffect(() => setUnreadOnly(false), [view]);
+
+  const items = useMemo(
+    () => messages.filter((m) => !hidden.has(m.id) && (!unreadOnly || !m.seen || m.id === selectedId)),
+    [messages, hidden, unreadOnly, selectedId],
+  );
   const parentRef = useRef<HTMLDivElement>(null);
-  // EasyUI Spotlight Card：カーソルの位置にだけ柔らかい光を落とす
-  const spotX = useMotionValue(0);
-  const spotY = useMotionValue(0);
-  const spotOpacity = useMotionValue(0);
-  const spot = useMotionTemplate`radial-gradient(260px circle at ${spotX}px ${spotY}px, var(--pill-active), transparent 70%)`;
-  const onSpot = (e: React.PointerEvent<HTMLDivElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    spotX.set(e.clientX - r.left);
-    spotY.set(e.clientY - r.top + e.currentTarget.scrollTop);
-    spotOpacity.set(1);
-  };
   const compact = settings.density === "compact";
-  const rowHeight = compact ? 60 : settings.previewLines === 2 ? 110 : 86;
+  const rowHeight = compact ? 58 : settings.previewLines === 2 ? 104 : 82;
 
   const virtualizer = useVirtualizer({
     count: items.length,
@@ -76,16 +72,12 @@ export function MessageList() {
     getItemKey: (i) => items[i].id,
   });
 
-  useEffect(() => virtualizer.measure(), [rowHeight, virtualizer]);
-
-  // 選択が変わったらスクロールして見える位置へ
   useEffect(() => {
     if (selectedId == null) return;
     const idx = items.findIndex((m) => m.id === selectedId);
     if (idx >= 0) virtualizer.scrollToIndex(idx, { align: "auto" });
   }, [selectedId, items, virtualizer]);
 
-  // 無限スクロール
   const vItems = virtualizer.getVirtualItems();
   const last = vItems[vItems.length - 1];
   const loadingMore = useRef(false);
@@ -104,35 +96,64 @@ export function MessageList() {
       ? (() => {
           const m = mailboxes.find((x) => x.accountId === view.accountId && x.path === view.path);
           if (!m) return undefined;
-          const names: Record<string, string> = { inbox: "受信トレイ", sent: "送信済み", drafts: "下書き", archive: "アーカイブ", trash: "ゴミ箱", junk: "迷惑メール" };
+          const names: Record<string, string> = { inbox: "受信", sent: "送信済み", drafts: "下書き", archive: "アーカイブ", trash: "ゴミ箱", junk: "迷惑メール" };
           if (m.role === "all") return accounts.find((a) => a.id === view.accountId)?.provider === "gmail" ? "すべてのメール" : "アーカイブ";
           return names[m.role] ?? m.name;
         })()
       : undefined;
-  const title = search ? `「${search}」の検索結果` : viewTitle(view, accounts, mailboxName);
-  const unread = items.filter((m) => !m.seen).length;
+  const title = search ? "検索結果" : viewTitle(view, accounts, mailboxName);
+  const unread = messages.filter((m) => !hidden.has(m.id) && !m.seen).length;
   const subtitle =
-    view.kind === "mailbox" && !search ? accounts.find((a) => a.id === view.accountId)?.email : undefined;
+    view.kind === "mailbox" && !search ? accounts.find((a) => a.id === view.accountId)?.email : search ? `「${search}」` : undefined;
   const multiAccount = accounts.length > 1 && view.kind === "unified";
+  const isSentView = view.kind === "unified" && view.role === "sent";
 
   return (
-    <section className="relative flex w-[408px] shrink-0 flex-col border-r border-line-subtle bg-bg/60 max-[1180px]:w-[348px]">
-      <header className="flex h-[72px] shrink-0 items-end justify-between gap-3 px-6 pb-3.5">
+    <section className="relative flex w-[392px] shrink-0 flex-col border-r border-line-subtle max-[1180px]:w-[336px]">
+      <header className="flex shrink-0 items-end justify-between gap-3 px-5 pb-3 pt-5">
         <div className="min-w-0">
-          <h1 className="truncate text-[21px] font-bold leading-tight text-fg">{title}</h1>
-          <p className="mt-1 truncate text-xs text-fg-3">
-            {subtitle ? `${subtitle}　` : ""}
-            {loading ? "読み込み中" : items.length === 0 ? "メールはありません" : unread > 0 ? `未読 ${unread}件` : `${items.length}件`}
+          <h1 className="truncate text-[26px] font-bold leading-[1.15] text-fg">{title}</h1>
+          <p className="mt-1.5 flex items-center gap-1 truncate text-[12.5px] text-fg-3">
+            {subtitle && <span className="truncate">{subtitle}　</span>}
+            {loading ? (
+              "読み込み中"
+            ) : unread > 0 ? (
+              <>
+                未読 <RollingNumber value={unread} /> 件
+              </>
+            ) : (
+              <>{messages.length === 0 ? "メールはありません" : "すべて既読です"}</>
+            )}
           </p>
         </div>
+        <Tooltip label={unreadOnly ? "すべて表示" : "未読だけ表示"}>
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            transition={spring.snappy}
+            onClick={() => setUnreadOnly(!unreadOnly)}
+            className={cn(
+              "grid size-8 cursor-default place-items-center rounded-full transition-colors duration-200",
+              unreadOnly ? "bg-blue text-white shadow-[0_4px_14px_-4px_var(--blue)]" : "text-fg-3 hover:bg-pill-active hover:text-fg",
+            )}
+            aria-pressed={unreadOnly}
+            aria-label="未読だけ表示"
+          >
+            <ListFilter className="size-4" />
+          </motion.button>
+        </Tooltip>
       </header>
 
-      <div ref={parentRef} onPointerMove={onSpot} onPointerLeave={() => spotOpacity.set(0)} className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden" role="listbox" aria-label={title}>
-        <motion.div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 z-0" style={{ height: virtualizer.getTotalSize() || "100%", background: spot, opacity: spotOpacity }} />
+      <div
+        ref={parentRef}
+        tabIndex={-1}
+        className="msglist relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-2 focus:outline-none"
+        role="listbox"
+        aria-label={title}
+      >
         {loading && items.length === 0 ? (
           <ListSkeleton rowHeight={rowHeight} />
         ) : items.length === 0 ? (
-          <EmptyList searching={!!search} view={view} />
+          <EmptyList searching={!!search} view={view} filtered={unreadOnly} />
         ) : (
           <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
             {vItems.map((vi) => {
@@ -141,17 +162,20 @@ export function MessageList() {
               return (
                 <div
                   key={vi.key}
+                  className="vrow"
                   style={{ position: "absolute", top: 0, left: 0, right: 0, height: vi.size, transform: `translateY(${vi.start}px)` }}
                 >
                   <Row
                     m={m}
                     selected={m.id === selectedId}
+                    beforeSelected={items[vi.index + 1]?.id === selectedId}
                     checked={checked.has(m.id)}
                     anyChecked={checked.size > 0}
                     compact={compact}
                     lines={settings.previewLines}
                     accountDot={acc ? accountColor(acc) : undefined}
-                    isSentView={view.kind === "unified" && view.role === "sent"}
+                    isSentView={isSentView}
+                    leaving={leaving.get(m.id)}
                   />
                 </div>
               );
@@ -170,140 +194,197 @@ export function MessageList() {
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* 1行：Apple Mail の作法 + 2本指スワイプ                               */
+/* ------------------------------------------------------------------ */
+
+const SWIPE_COMMIT = 96;
+const SWIPE_MAX = 150;
+
 const Row = memo(function Row({
   m,
   selected,
+  beforeSelected,
   checked,
   anyChecked,
   compact,
   lines,
   accountDot,
   isSentView,
+  leaving,
 }: {
   m: MessageSummary;
   selected: boolean;
+  beforeSelected: boolean;
   checked: boolean;
   anyChecked: boolean;
   compact: boolean;
   lines: 1 | 2;
   accountDot?: string;
   isSentView: boolean;
+  leaving?: "left" | "right";
 }) {
   const select = useStore((s) => s.select);
   const toggleCheck = useStore((s) => s.toggleCheck);
   const triage = useStore((s) => s.triage);
   const unread = !m.seen;
-  const who = isSentView ? `宛先: ${m.toPreview || "(なし)"}` : displayName(m.fromName, m.fromAddr);
+  const who = isSentView ? m.toPreview || "(宛先なし)" : displayName(m.fromName, m.fromAddr);
+
+  // トラックパッドの横スワイプ：左へ＝アーカイブ、右へ＝既読/未読
+  const x = useMotionValue(0);
+  const idle = useRef<number>(undefined);
+  const committed = useRef(false);
+  const leftReveal = useTransform(x, [-SWIPE_MAX, -SWIPE_COMMIT, -16, 0], [1, 1, 0.4, 0]);
+  const rightReveal = useTransform(x, [0, 16, SWIPE_COMMIT, SWIPE_MAX], [0, 0.4, 1, 1]);
+  const iconScaleL = useTransform(x, [-SWIPE_COMMIT - 10, -SWIPE_COMMIT + 10], [1.15, 0.85]);
+  const iconScaleR = useTransform(x, [SWIPE_COMMIT - 10, SWIPE_COMMIT + 10], [0.85, 1.15]);
+
+  const onWheel = (e: React.WheelEvent) => {
+    if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) || committed.current) return;
+    const next = Math.max(-SWIPE_MAX, Math.min(SWIPE_MAX, x.get() - e.deltaX * 0.9));
+    x.set(next);
+    window.clearTimeout(idle.current);
+    idle.current = window.setTimeout(() => {
+      const v = x.get();
+      if (v <= -SWIPE_COMMIT) {
+        committed.current = true;
+        animate(x, -420, { duration: 0.22, ease: [0.4, 0, 1, 1] });
+        triage("archive", [m.id]);
+      } else if (v >= SWIPE_COMMIT) {
+        animate(x, 0, spring.responsive);
+        triage(unread ? "read" : "unread", [m.id]);
+      } else {
+        animate(x, 0, spring.responsive);
+      }
+    }, 140);
+  };
+
+  useEffect(() => {
+    if (!leaving) {
+      committed.current = false;
+      if (x.get() !== 0) animate(x, 0, spring.responsive);
+    }
+  }, [leaving, x]);
 
   return (
-    <div
+    <motion.div
       role="option"
       aria-selected={selected}
+      data-selected={selected}
+      onWheel={onWheel}
       onClick={(e) => {
         if (e.ctrlKey || e.metaKey || e.shiftKey || anyChecked) toggleCheck(m.id, e.shiftKey);
         else select(m.id);
       }}
-      className="group relative mx-2.5 h-[calc(100%-3px)] cursor-default rounded-[14px]"
+      animate={leaving ? { opacity: 0, x: leaving === "left" ? -60 : 60, scale: 0.98 } : { opacity: 1, scale: 1 }}
+      transition={leaving ? { duration: 0.22, ease: [0.4, 0, 1, 1] } : spring.smooth}
+      className="group relative mx-2 h-full cursor-default"
     >
-      {selected && (
-        <motion.div
-          layoutId="row-active"
-          transition={spring.morph}
-          className="absolute inset-0 rounded-[14px] border border-line bg-surface shadow-card"
-        />
-      )}
-      {checked && !selected && <div className="absolute inset-0 rounded-[14px] bg-pill-active" />}
-      {!selected && !checked && (
-        <div className="absolute inset-0 rounded-[14px] opacity-0 transition-opacity duration-300 group-hover:bg-pill group-hover:opacity-100" />
-      )}
+      {/* スワイプで出てくる下地 */}
+      <motion.div style={{ opacity: leftReveal }} className="absolute inset-y-0.5 right-0 left-1/2 flex items-center justify-end rounded-[11px] bg-[#8e5bd9] pr-5 text-white">
+        <motion.span style={{ scale: iconScaleL }} className="flex flex-col items-center gap-1 text-[11px] font-medium">
+          <Archive className="size-5" />
+          アーカイブ
+        </motion.span>
+      </motion.div>
+      <motion.div style={{ opacity: rightReveal }} className="absolute inset-y-0.5 left-0 right-1/2 flex items-center rounded-[11px] bg-blue pl-5 text-white">
+        <motion.span style={{ scale: iconScaleR }} className="flex flex-col items-center gap-1 text-[11px] font-medium">
+          {unread ? <MailOpen className="size-5" /> : <Mail className="size-5" />}
+          {unread ? "既読" : "未読"}
+        </motion.span>
+      </motion.div>
 
-      <div className={cn("relative flex h-full gap-3.5 px-3.5", compact ? "items-center" : "pt-3.5")}>
-        {/* 未読ドット */}
-        <span
-          className={cn(
-            "absolute left-[2px] size-[6px] rounded-full bg-indicator shadow-[0_0_10px_var(--indicator)] transition-opacity duration-500",
-            compact ? "top-1/2 -translate-y-1/2" : "top-[28px]",
-            unread ? "opacity-100" : "opacity-0",
-          )}
-        />
-
-        {/* アバター／チェックボックス */}
-        {!compact && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleCheck(m.id, e.shiftKey);
-            }}
-            className="relative size-[34px] shrink-0 cursor-default"
-            aria-label={checked ? "選択を解除" : "選択"}
-          >
-            <span className={cn("absolute inset-0 transition-opacity", (checked || anyChecked) ? "opacity-0" : "group-hover:opacity-0")}>
-              <Avatar name={m.fromName} email={m.fromAddr} size={34} />
-              {accountDot && (
-                <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-bg" style={{ background: accountDot }} />
-              )}
-            </span>
-            <span
-              className={cn(
-                "absolute inset-0 grid place-items-center rounded-full border transition-all",
-                checked ? "border-accent bg-accent text-accent-fg" : "border-line-hover bg-surface text-transparent",
-                checked || anyChecked ? "opacity-100" : "opacity-0 group-hover:opacity-100",
-              )}
-            >
-              <DrawCheck on={checked} />
-            </span>
-          </button>
+      <motion.div style={{ x }} className="row-surface relative h-full rounded-[11px] bg-content">
+        {selected && <motion.div layoutId="row-active" transition={spring.morph} className="row-pill absolute inset-y-0.5 inset-x-0 rounded-[11px]" />}
+        {checked && !selected && <div className="absolute inset-y-0.5 inset-x-0 rounded-[11px] bg-pill-active" />}
+        {!selected && !checked && (
+          <div className="absolute inset-y-0.5 inset-x-0 rounded-[11px] opacity-0 transition-opacity duration-200 group-hover:bg-pill group-hover:opacity-100" />
         )}
 
-        <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-2">
-            <span className={cn("min-w-0 flex-1 truncate text-[13.5px]", unread ? "font-bold text-fg" : "font-medium text-fg-2")}>
-              {who}
-              {m.threadCount > 1 && <span className="ml-1.5 text-xs font-normal text-fg-3 tabular">{m.threadCount}</span>}
-            </span>
-            <span className={cn("shrink-0 text-[11.5px] tabular transition-opacity group-hover:opacity-0", unread ? "text-fg-2" : "text-fg-3")}>
-              {listDate(m.date)}
-            </span>
-          </div>
-          <div className="mt-[3px] flex items-center gap-1.5">
-            <span className={cn("min-w-0 flex-1 truncate text-[13px]", unread ? "font-medium text-fg" : "text-fg-2/90")}>
-              {m.subject || "(件名なし)"}
-            </span>
-            {m.hasAttach && <Paperclip className="size-3.5 shrink-0 text-fg-3" />}
-            {m.flagged && <Star className="size-3.5 shrink-0 fill-star text-star" />}
-          </div>
+        <div className={cn("relative flex h-full gap-3 pl-6 pr-3.5", compact ? "items-center" : "pt-[13px]")}>
+          {/* 未読ドット */}
+          <span
+            className={cn(
+              "row-dot absolute left-[9px] size-[9px] rounded-full bg-blue transition-[opacity,transform] duration-300",
+              compact ? "top-1/2 -translate-y-1/2" : "top-[20px]",
+              unread ? "scale-100 opacity-100" : "scale-50 opacity-0",
+            )}
+          />
+
           {!compact && (
-            <p
-              className={cn("mt-1 text-[12.5px] leading-[1.6] text-fg-3", lines === 2 ? "line-clamp-2" : "truncate")}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleCheck(m.id, e.shiftKey);
+              }}
+              className="relative size-8 shrink-0 cursor-default"
+              aria-label={checked ? "選択を解除" : "選択"}
             >
-              {m.snippet}
-            </p>
+              <span className={cn("absolute inset-0 transition-opacity", checked || anyChecked ? "opacity-0" : "group-hover:opacity-0")}>
+                <Avatar name={m.fromName} email={m.fromAddr} size={32} />
+                {accountDot && (
+                  <span className="absolute -bottom-0.5 -right-0.5 size-[11px] rounded-full border-2 border-content" style={{ background: accountDot }} />
+                )}
+              </span>
+              <span
+                className={cn(
+                  "absolute inset-0 grid place-items-center rounded-full border transition-all",
+                  checked ? "border-blue bg-blue text-white" : "border-line-hover bg-content text-transparent",
+                  checked || anyChecked ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+                )}
+              >
+                <DrawCheck on={checked} />
+              </span>
+            </button>
           )}
+
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-2">
+              <span className={cn("row-fg min-w-0 flex-1 truncate text-[14px]", unread ? "font-bold" : "font-medium")}>
+                {who}
+                {m.threadCount > 1 && <span className="row-fg3 ml-1.5 text-[12px] font-normal tabular">{m.threadCount}</span>}
+              </span>
+              <span className="row-fg3 shrink-0 text-[12px] tabular transition-opacity duration-150 group-hover:opacity-0">{listDate(m.date)}</span>
+            </div>
+            <div className="mt-[2px] flex items-center gap-1.5">
+              <span className={cn("row-fg min-w-0 flex-1 truncate text-[13px]", unread && "font-medium")}>{m.subject || "(件名なし)"}</span>
+              {m.hasAttach && <Paperclip className="row-fg3 size-3.5 shrink-0" />}
+              {m.flagged && <Star className="size-3.5 shrink-0 fill-star text-star" />}
+            </div>
+            {!compact && (
+              <p className={cn("row-fg3 mt-[3px] text-[13px] leading-[1.5]", lines === 2 ? "line-clamp-2" : "truncate")}>{m.snippet}</p>
+            )}
+          </div>
+
+          {/* ホバーで出るクイック操作（ガラスのカプセル） */}
+          <div
+            className={cn(
+              "capsule pointer-events-none absolute right-2.5 flex items-center gap-0.5 rounded-full p-0.5 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100",
+              compact ? "top-1/2 -translate-y-1/2" : "top-2",
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <IconButton size="sm" className="rounded-full" label="アーカイブ" shortcut="E" onClick={() => triage("archive", [m.id])}>
+              <Archive />
+            </IconButton>
+            <IconButton size="sm" className="rounded-full" label="削除" shortcut="#" onClick={() => triage("trash", [m.id])}>
+              <Trash2 />
+            </IconButton>
+            <IconButton size="sm" className="rounded-full" label={unread ? "既読にする" : "未読にする"} shortcut="U" onClick={() => triage(unread ? "read" : "unread", [m.id])}>
+              {unread ? <MailOpen /> : <Mail />}
+            </IconButton>
+            <IconButton size="sm" className="rounded-full" label={m.flagged ? "スターを外す" : "スターを付ける"} shortcut="S" onClick={() => triage(m.flagged ? "unflag" : "flag", [m.id])}>
+              <Star className={m.flagged ? "fill-star text-star" : ""} />
+            </IconButton>
+          </div>
         </div>
 
-        {/* ホバー時のクイック操作 */}
-        <div
-          className={cn(
-            "pointer-events-none absolute right-2 flex items-center gap-0.5 rounded-lg border border-line bg-surface p-0.5 opacity-0 shadow-card transition-all duration-150 group-hover:pointer-events-auto group-hover:opacity-100",
-            compact ? "top-1/2 -translate-y-1/2" : "top-2",
-          )}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <IconButton size="sm" label="アーカイブ" shortcut="E" onClick={() => triage("archive", [m.id])}>
-            <Archive />
-          </IconButton>
-          <IconButton size="sm" label="削除" shortcut="#" onClick={() => triage("trash", [m.id])}>
-            <Trash2 />
-          </IconButton>
-          <IconButton size="sm" label={unread ? "既読にする" : "未読にする"} shortcut="U" onClick={() => triage(unread ? "read" : "unread", [m.id])}>
-            {unread ? <MailOpen /> : <Mail />}
-          </IconButton>
-          <IconButton size="sm" label={m.flagged ? "スターを外す" : "スターを付ける"} shortcut="S" onClick={() => triage(m.flagged ? "unflag" : "flag", [m.id])}>
-            <Star className={m.flagged ? "fill-star text-star" : ""} />
-          </IconButton>
-        </div>
-      </div>
-    </div>
+        {/* 区切り線：本文の頭から右端まで。選択行の上下では消す */}
+        {!selected && !beforeSelected && !checked && (
+          <span className="absolute bottom-0 left-[68px] right-3 h-px bg-line-subtle" />
+        )}
+      </motion.div>
+    </motion.div>
   );
 });
 
@@ -316,7 +397,7 @@ function DrawCheck({ on }: { on: boolean }) {
   );
 }
 
-/** EasyUI SelectionBasket：複数選択時に下から上がってくる一括操作バー */
+/** 複数選択時に下から浮かび上がるガラスのバー */
 function SelectionBar() {
   const checked = useStore((s) => s.checked);
   const clear = useStore((s) => s.clearChecks);
@@ -330,33 +411,35 @@ function SelectionBar() {
     <AnimatePresence>
       {n > 0 && (
         <motion.div
-          initial={{ y: 24, opacity: 0, scale: 0.96 }}
-          animate={{ y: 0, opacity: 1, scale: 1 }}
-          exit={{ y: 24, opacity: 0, scale: 0.96 }}
+          initial={{ y: 30, opacity: 0, scale: 0.94, filter: "blur(6px)" }}
+          animate={{ y: 0, opacity: 1, scale: 1, filter: "blur(0px)" }}
+          exit={{ y: 30, opacity: 0, scale: 0.94, filter: "blur(6px)" }}
           transition={spring.responsive}
-          className="absolute inset-x-3 bottom-3 z-10 flex items-center gap-1 rounded-2xl border border-line bg-surface p-1.5 pl-3 shadow-float"
+          className="capsule absolute inset-x-4 bottom-4 z-10 flex items-center gap-0.5 rounded-full p-1 pl-4"
         >
-          <span className="flex-1 text-[13px] font-medium text-fg tabular">{n}件を選択</span>
+          <span className="flex flex-1 items-center gap-1 text-[13px] font-semibold text-fg">
+            <RollingNumber value={n} />
+            件を選択
+          </span>
           {inArchive ? (
-            <IconButton label="受信トレイに戻す" onClick={() => triage("inbox")}>
+            <IconButton className="rounded-full" label="受信トレイに戻す" onClick={() => triage("inbox")}>
               <ArchiveRestore />
             </IconButton>
           ) : (
-            <IconButton label="アーカイブ" shortcut="E" onClick={() => triage("archive")}>
+            <IconButton className="rounded-full" label="アーカイブ" shortcut="E" onClick={() => triage("archive")}>
               <Archive />
             </IconButton>
           )}
-          <IconButton label="削除" shortcut="#" onClick={() => triage("trash")}>
+          <IconButton className="rounded-full" label="削除" shortcut="#" onClick={() => triage("trash")}>
             <Trash2 />
           </IconButton>
-          <IconButton label={allUnread ? "既読にする" : "未読にする"} onClick={() => triage(allUnread ? "read" : "unread")}>
+          <IconButton className="rounded-full" label={allUnread ? "既読にする" : "未読にする"} onClick={() => triage(allUnread ? "read" : "unread")}>
             {allUnread ? <MailOpen /> : <Mail />}
           </IconButton>
-          <IconButton label="スターを付ける" onClick={() => triage("flag")}>
+          <IconButton className="rounded-full" label="スターを付ける" onClick={() => triage("flag")}>
             <Star />
           </IconButton>
-          <span className="mx-1 h-5 w-px bg-line" />
-          <IconButton label="選択を解除" shortcut="Esc" onClick={clear}>
+          <IconButton className="rounded-full" label="選択を解除" shortcut="Esc" onClick={clear}>
             <X />
           </IconButton>
         </motion.div>
@@ -369,7 +452,7 @@ function ListSkeleton({ rowHeight }: { rowHeight: number }) {
   return (
     <div className="px-5 pt-1">
       {Array.from({ length: 9 }).map((_, i) => (
-        <div key={i} className="flex gap-3" style={{ height: rowHeight }}>
+        <div key={i} className="flex gap-3 pl-1" style={{ height: rowHeight }}>
           <div className="skeleton mt-3 size-8 shrink-0 rounded-full" />
           <div className="flex-1 pt-3.5">
             <div className="skeleton h-3 w-2/5" />
@@ -382,27 +465,54 @@ function ListSkeleton({ rowHeight }: { rowHeight: number }) {
   );
 }
 
-function EmptyList({ searching, view }: { searching: boolean; view: View }) {
-  const inbox = view.kind === "unified" && view.role === "inbox";
+/** 空の時。受信トレイが空になったら、ささやかに祝う */
+function EmptyList({ searching, view, filtered }: { searching: boolean; view: View; filtered: boolean }) {
+  const inbox = view.kind === "unified" && view.role === "inbox" && !filtered;
   return (
     <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: 10, filter: "blur(6px)" }}
+      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
       transition={spring.gentle}
-      className="flex h-full flex-col items-center justify-center px-10 pb-16 text-center"
+      className="flex h-full flex-col items-center justify-center px-10 pb-20 text-center"
     >
-      <div className="grid size-12 place-items-center rounded-2xl border border-line bg-surface text-fg-3 shadow-subtle">
-        {searching ? <SearchX className="size-5" /> : inbox ? <Check className="size-5" /> : <Inbox className="size-5" />}
-      </div>
-      <p className="mt-4 text-sm font-medium text-fg">
-        {searching ? "一致するメールはありません" : inbox ? "受信トレイは空です" : "このフォルダは空です"}
+      {inbox && !searching ? (
+        <svg viewBox="0 0 64 64" className="size-16" fill="none">
+          <motion.circle
+            cx="32"
+            cy="32"
+            r="28"
+            stroke="var(--blue)"
+            strokeWidth="3"
+            initial={{ pathLength: 0, rotate: -90 }}
+            animate={{ pathLength: 1 }}
+            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+            style={{ originX: "50%", originY: "50%" }}
+          />
+          <motion.path
+            d="M20 33 L28.5 41.5 L45 24"
+            stroke="var(--blue)"
+            strokeWidth="3.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            initial={{ pathLength: 0 }}
+            animate={{ pathLength: 1 }}
+            transition={{ duration: 0.45, delay: 0.55, ease: [0.22, 1, 0.36, 1] }}
+          />
+        </svg>
+      ) : (
+        <div className="grid size-14 place-items-center rounded-full bg-pill text-fg-3">
+          {searching ? <SearchX className="size-6" /> : <Inbox className="size-6" />}
+        </div>
+      )}
+      <p className="mt-5 text-[17px] font-bold text-fg">
+        {searching ? "見つかりませんでした" : inbox ? "すべて片づきました" : filtered ? "未読はありません" : "メールはありません"}
       </p>
-      <p className="mt-1 text-xs leading-relaxed text-fg-3">
+      <p className="mt-1.5 text-[13px] leading-relaxed text-fg-3">
         {searching
-          ? "差出人・件名・本文の一部で検索できます。同期済みのメールが対象です"
+          ? "差出人・件名・本文の一部で探せます"
           : inbox
-            ? "新しいメールが届くとすぐにここに表示されます"
-            : "メールを移動するとここに表示されます"}
+            ? "新しいメールが届けば、すぐにここに現れます"
+            : "このフォルダにはまだ何もありません"}
       </p>
     </motion.div>
   );
