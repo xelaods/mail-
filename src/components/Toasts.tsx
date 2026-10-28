@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, Check, Undo2, X } from "lucide-react";
 import { useStore, type Toast } from "../lib/store";
 import { spring } from "../lib/motion";
-import { Kbd, cn } from "./ui";
+import { cn } from "./ui";
 
 /** EasyUI UndoToast / VelocityToast を元にしたトースト。ホバー中はカウントダウンが止まる */
 export function Toasts() {
@@ -22,7 +22,6 @@ export function Toasts() {
 function ToastCard({ t, latest }: { t: Toast; latest: boolean }) {
   const resolve = useStore((s) => s.resolveToast);
   const [paused, setPaused] = useState(false);
-  const [progress, setProgress] = useState(1);
   const remaining = useRef(t.duration);
   const done = useRef(false);
 
@@ -34,7 +33,6 @@ function ToastCard({ t, latest }: { t: Toast; latest: boolean }) {
     const tick = (now: number) => {
       const left = Math.max(0, total - (now - start));
       remaining.current = left;
-      setProgress(left / t.duration);
       if (left <= 0) {
         if (!done.current) {
           done.current = true;
@@ -74,9 +72,9 @@ function ToastCard({ t, latest }: { t: Toast; latest: boolean }) {
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: -18, scale: 0.6, filter: "blur(6px)" }}
-      animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
-      exit={{ opacity: 0, y: -12, scale: 0.8, filter: "blur(4px)", transition: { duration: 0.2 } }}
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, transition: { duration: 0.15 } }}
       transition={spring.responsive}
       onPointerEnter={() => setPaused(true)}
       onPointerLeave={() => setPaused(false)}
@@ -99,7 +97,7 @@ function ToastCard({ t, latest }: { t: Toast; latest: boolean }) {
         >
           <Undo2 className="size-3.5" />
           取り消す
-          {latest && <Kbd className="ml-0.5 h-4">Ctrl Z</Kbd>}
+          
         </button>
       )}
       <button
@@ -112,11 +110,6 @@ function ToastCard({ t, latest }: { t: Toast; latest: boolean }) {
       >
         <X className="size-3.5" />
       </button>
-      {t.commit && (
-        <div className="absolute inset-x-0 bottom-0 h-[2px] bg-line-subtle">
-          <div className="h-full bg-blue" style={{ width: `${progress * 100}%` }} />
-        </div>
-      )}
     </motion.div>
   );
 }

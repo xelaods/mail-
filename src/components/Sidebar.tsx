@@ -75,7 +75,6 @@ export function Sidebar() {
   const openComposer = useStore((s) => s.openComposer);
   const setDialog = useStore((s) => s.setDialog);
   const sync = useStore((s) => s.sync);
-  const [hover, setHover] = useState<{ top: number; height: number } | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const active = viewKey(view);
@@ -110,7 +109,6 @@ export function Sidebar() {
       count={count}
       dot={dot}
       onSelect={() => setView(v)}
-      onHover={setHover}
     />
   );
 
@@ -123,30 +121,16 @@ export function Sidebar() {
           onClick={() => openComposer("new")}
           className="group flex h-9 w-full cursor-default items-center gap-2.5 rounded-[10px] px-2.5 text-[13px] font-medium text-fg transition-colors duration-200 hover:bg-pill-active"
         >
-          <span className="grid size-6 place-items-center rounded-[7px] bg-blue text-white shadow-[0_2px_8px_-2px_var(--blue)]">
+          <span className="grid size-6 place-items-center rounded-[7px] bg-blue text-white">
             <PenLine className="size-3.5" strokeWidth={2} />
           </span>
           <span className="flex-1 text-left">新規メッセージ</span>
-          <kbd className="font-mono text-[10px] text-fg-4 transition-colors group-hover:text-fg-3">C</kbd>
         </motion.button>
       </div>
 
       <div
         className="relative min-h-0 flex-1 overflow-y-auto px-2 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        onPointerLeave={() => setHover(null)}
       >
-        {/* EasyUI Sidebar：カーソルを追いかけるホバーピル */}
-        <AnimatePresence>
-          {hover && (
-            <motion.div
-              className="pointer-events-none absolute inset-x-2 rounded-[8px] bg-pill"
-              initial={{ opacity: 0, top: hover.top, height: hover.height }}
-              animate={{ opacity: 1, top: hover.top, height: hover.height }}
-              exit={{ opacity: 0 }}
-              transition={spring.snappy}
-            />
-          )}
-        </AnimatePresence>
 
         <p className="px-2.5 pb-1 pt-2 text-[11px] font-semibold text-fg-3">メールボックス</p>
         <div className="space-y-px">
@@ -233,7 +217,6 @@ function NavItem({
   count,
   dot,
   onSelect,
-  onHover,
 }: {
   id: string;
   active: boolean;
@@ -242,28 +225,17 @@ function NavItem({
   count?: number;
   dot?: string;
   onSelect: () => void;
-  onHover: (r: { top: number; height: number } | null) => void;
 }) {
   return (
     <button
       data-nav={id}
       onClick={onSelect}
-      onPointerEnter={(e) => {
-        const el = e.currentTarget;
-        onHover({ top: el.offsetTop, height: el.offsetHeight });
-      }}
       className={cn(
-        "relative flex h-[30px] w-full cursor-default items-center gap-2.5 rounded-[8px] px-2.5 text-[13px] text-fg transition-colors duration-150",
+        "relative flex h-[30px] w-full cursor-default items-center gap-2.5 rounded-[8px] px-2.5 text-[13px] text-fg hover:bg-pill",
         active && "font-medium",
       )}
     >
-      {active && (
-        <motion.span
-          layoutId="nav-active"
-          transition={spring.morph}
-          className="absolute inset-0 rounded-[8px] bg-pill-active shadow-[inset_0_0.5px_0_var(--highlight)]"
-        />
-      )}
+      {active && <span className="absolute inset-0 rounded-[8px] bg-pill-active" />}
       <span className="relative grid size-4 shrink-0 place-items-center text-blue [&>svg]:size-[17px]">
         {icon}
       </span>

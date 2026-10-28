@@ -212,16 +212,12 @@ textarea:focus-visible {
    Liquid Glass：壁紙の色をうっすら透かす素材
    --------------------------------------------------------------------------- */
 
-/* ガラスの向こうに見える「壁紙」。色はごく淡く、素材に奥行きを与えるためだけに使う */
 .wallpaper {
   pointer-events: none;
   position: fixed;
   inset: 0;
   z-index: 0;
-  background:
-    radial-gradient(55% 70% at 0% 0%, var(--wall-a), transparent 70%),
-    radial-gradient(45% 60% at 0% 100%, var(--wall-b), transparent 70%),
-    var(--bg);
+  background: var(--bg);
 }
 
 /* サイドバーなどの浮いたガラス板 */
@@ -328,7 +324,6 @@ svg.lucide {
 }
 .msglist:focus-within .row-pill {
   background: var(--blue);
-  box-shadow: 0 6px 20px -10px var(--blue);
 }
 .msglist:focus-within [data-selected="true"] .row-fg {
   color: #ffffff;

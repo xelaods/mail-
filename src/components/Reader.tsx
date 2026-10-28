@@ -24,7 +24,7 @@ import { api, openExternal, pickSavePath } from "../lib/api";
 import type { AttachmentInfo, MessageDetail } from "../lib/types";
 import { accountColor, displayName, fileSize, formatAddress, fullDate, listDate, providerLabel } from "../lib/format";
 import { spring } from "../lib/motion";
-import { Avatar, Button, IconButton, Spinner, Tooltip, cn } from "./ui";
+import { Avatar, Button, IconButton, Spinner, cn } from "./ui";
 import { BlockedBanner, HtmlFrame, TextBody } from "./EmailBody";
 
 export function Reader() {
@@ -74,11 +74,11 @@ export function Reader() {
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={selectedId}
-            initial={{ opacity: 0, y: 14, filter: "blur(8px)" }}
-            animate={{ opacity: 1, y: 0, filter: "blur(0px)", transitionEnd: { filter: "none" } }}
-            exit={{ opacity: 0, transition: { duration: 0.08 } }}
-            transition={spring.gentle}
-            className="relative mx-auto w-full max-w-[860px] px-10 pb-32 pt-[72px]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, transition: { duration: 0.05 } }}
+            transition={{ duration: 0.12 }}
+            className="relative mx-auto w-full max-w-[860px] px-10 pb-16 pt-[72px]"
           >
             <h2 className="selectable text-[28px] font-bold leading-[1.4] text-fg">{subject}</h2>
             <div className="mt-2.5 flex flex-wrap items-center gap-3 text-[12.5px] text-fg-3">
@@ -118,7 +118,6 @@ export function Reader() {
         </AnimatePresence>
       </div>
 
-      {current && !error && <QuickReply m={current} />}
     </section>
   );
 }
@@ -157,10 +156,10 @@ function Toolbar({ current, scrolled, subject }: { current?: MessageDetail; scro
         <AnimatePresence>
           {scrolled && (
             <motion.p
-              initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
-              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-              exit={{ opacity: 0, y: 6, filter: "blur(4px)" }}
-              transition={spring.snappy}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
               className="truncate text-center text-[13.5px] font-bold text-fg"
             >
               {subject}
@@ -191,9 +190,7 @@ function Toolbar({ current, scrolled, subject }: { current?: MessageDetail; scro
           <Mail />
         </IconButton>
         <IconButton className={btn} label={flagged ? "スターを外す" : "スターを付ける"} shortcut="S" onClick={() => triage(flagged ? "unflag" : "flag")}>
-          <motion.span key={String(flagged)} initial={{ scale: 0.6, rotate: -20 }} animate={{ scale: 1, rotate: 0 }} transition={spring.responsive} className="grid">
-            <Star className={cn("size-4", flagged && "fill-star text-star")} />
-          </motion.span>
+          <Star className={cn("size-4", flagged && "fill-star text-star")} />
         </IconButton>
       </Capsule>
       <Capsule>
@@ -413,39 +410,6 @@ function Attachments({ m, items }: { m: MessageDetail; items: AttachmentInfo[] }
   );
 }
 
-/** 画面下に浮かぶ返信のカプセル */
-function QuickReply({ m }: { m: MessageDetail }) {
-  const openComposer = useStore((s) => s.openComposer);
-  const composerOpen = useStore((s) => !!s.composer && !s.composer.minimized);
-  const multi = m.to.length + m.cc.length > 1;
-  return (
-    <AnimatePresence>
-      {!composerOpen && (
-        <motion.div
-          initial={{ y: 24, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 24, opacity: 0 }}
-          transition={spring.smooth}
-          className="pointer-events-none absolute inset-x-0 bottom-5 z-20 flex justify-center px-8"
-        >
-          <Tooltip label="返信" shortcut="R" side="top">
-            <motion.button
-              whileHover={{ y: -1 }}
-              whileTap={{ scale: 0.98 }}
-              transition={spring.snappy}
-              onClick={() => openComposer(multi ? "replyAll" : "reply", m)}
-              className="capsule pointer-events-auto flex h-11 w-[min(560px,calc(100vw-760px))] min-w-[300px] cursor-text items-center gap-3 rounded-full px-5 text-left text-[13.5px] text-fg-3"
-            >
-              <Reply className="size-4 text-blue" />
-              <span className="flex-1 truncate">{displayName(m.fromName, m.fromAddr)} さんに返信</span>
-            </motion.button>
-          </Tooltip>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
-
 function ReaderSkeleton() {
   return (
     <div>
@@ -473,53 +437,22 @@ function ReaderEmpty() {
   return (
     <section className="relative flex min-w-0 flex-1 items-center justify-center">
       <motion.div
-        initial={{ opacity: 0, y: 10, filter: "blur(6px)" }}
-        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-        transition={spring.gentle}
         className="max-w-[340px] text-center"
       >
-        <EnvelopeArt />
         {accounts.length === 0 ? (
           <>
-            <p className="mt-6 text-[17px] font-bold text-fg">アカウントを追加して始めましょう</p>
-            <p className="mt-1.5 text-[13px] leading-relaxed text-fg-3">Gmail と iCloud メールを、ひとつの受信箱で。</p>
+            <p className="text-[15px] font-medium text-fg-3">アカウントがありません</p>
             <Button variant="primary" className="mt-5" onClick={() => setDialog("addAccount")}>
               アカウントを追加
             </Button>
           </>
         ) : (
           <>
-            <p className="mt-6 text-[17px] font-bold text-fg">{unread > 0 ? `未読が ${unread} 件あります` : "メッセージが選択されていません"}</p>
-            <p className="mt-1.5 text-[13px] leading-relaxed text-fg-3">
-              J と K で移動、E でアーカイブ。
-              <br />
-              トラックパッドの横スワイプでも整理できます。
-            </p>
-            <button
-              onClick={() => setDialog("shortcuts")}
-              className="mt-4 cursor-default rounded-full px-3 py-1 text-[12.5px] font-medium text-blue transition-colors hover:bg-[color-mix(in_srgb,var(--blue)_10%,transparent)]"
-            >
-              キーボードショートカット
-            </button>
+            <p className="text-[15px] font-medium text-fg-3">メッセージが選択されていません</p>
+            {unread > 0 && <p className="mt-1 text-[13px] text-fg-4">未読 {unread} 件</p>}
           </>
         )}
       </motion.div>
     </section>
-  );
-}
-
-function EnvelopeArt() {
-  return (
-    <svg viewBox="0 0 160 112" className="mx-auto h-[96px] w-auto" aria-hidden>
-      <motion.g initial={{ y: 14 }} animate={{ y: 0 }} transition={{ ...spring.gentle, delay: 0.1 }}>
-        <rect x="40" y="10" width="80" height="64" rx="7" fill="var(--paper)" stroke="var(--border)" />
-        <rect x="52" y="24" width="44" height="4" rx="2" fill="#c7c7cc" />
-        <rect x="52" y="34" width="56" height="4" rx="2" fill="#e5e5ea" />
-        <rect x="52" y="44" width="36" height="4" rx="2" fill="#e5e5ea" />
-      </motion.g>
-      <path d="M24 46 L80 82 L136 46 V98 a7 7 0 0 1 -7 7 H31 a7 7 0 0 1 -7 -7 Z" fill="var(--surface)" stroke="var(--border)" />
-      <path d="M24 98 L66 70 M136 98 L94 70" stroke="var(--border)" fill="none" />
-      <circle cx="132" cy="44" r="7" fill="var(--blue)" stroke="var(--content)" strokeWidth="3" />
-    </svg>
   );
 }

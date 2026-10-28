@@ -72,9 +72,10 @@ export function avatarTone(seed: string): { bg: string; fg: string } {
   let h = 0;
   for (const c of seed) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   const hue = h % 360;
+  void hue;
   return {
-    bg: `light-dark(hsl(${hue} 32% 91%), hsl(${hue} 18% 26%))`,
-    fg: `light-dark(hsl(${hue} 30% 32%), hsl(${hue} 40% 86%))`,
+    bg: "linear-gradient(180deg, #a5a9b1, #868a92)",
+    fg: "#ffffff",
   };
 }
 

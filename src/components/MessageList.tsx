@@ -133,7 +133,7 @@ export function MessageList() {
             onClick={() => setUnreadOnly(!unreadOnly)}
             className={cn(
               "grid size-8 cursor-default place-items-center rounded-full transition-colors duration-200",
-              unreadOnly ? "bg-blue text-white shadow-[0_4px_14px_-4px_var(--blue)]" : "text-fg-3 hover:bg-pill-active hover:text-fg",
+              unreadOnly ? "bg-blue text-white" : "text-fg-3 hover:bg-pill-active hover:text-fg",
             )}
             aria-pressed={unreadOnly}
             aria-label="未読だけ表示"
@@ -295,7 +295,7 @@ const Row = memo(function Row({
       </motion.div>
 
       <motion.div style={{ x }} className="row-surface relative h-full rounded-[11px] bg-content">
-        {selected && <motion.div layoutId="row-active" transition={spring.morph} className="row-pill absolute inset-y-0.5 inset-x-0 rounded-[11px]" />}
+        {selected && <div className="row-pill absolute inset-y-0.5 inset-x-0 rounded-[11px]" />}
         {checked && !selected && <div className="absolute inset-y-0.5 inset-x-0 rounded-[11px] bg-pill-active" />}
         {!selected && !checked && (
           <div className="absolute inset-y-0.5 inset-x-0 rounded-[11px] opacity-0 transition-opacity duration-200 group-hover:bg-pill group-hover:opacity-100" />
@@ -411,9 +411,9 @@ function SelectionBar() {
     <AnimatePresence>
       {n > 0 && (
         <motion.div
-          initial={{ y: 30, opacity: 0, scale: 0.94, filter: "blur(6px)" }}
-          animate={{ y: 0, opacity: 1, scale: 1, filter: "blur(0px)" }}
-          exit={{ y: 30, opacity: 0, scale: 0.94, filter: "blur(6px)" }}
+          initial={{ y: 16, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 16, opacity: 0 }}
           transition={spring.responsive}
           className="capsule absolute inset-x-4 bottom-4 z-10 flex items-center gap-0.5 rounded-full p-1 pl-4"
         >
@@ -470,49 +470,18 @@ function EmptyList({ searching, view, filtered }: { searching: boolean; view: Vi
   const inbox = view.kind === "unified" && view.role === "inbox" && !filtered;
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10, filter: "blur(6px)" }}
-      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-      transition={spring.gentle}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.15 }}
       className="flex h-full flex-col items-center justify-center px-10 pb-20 text-center"
     >
-      {inbox && !searching ? (
-        <svg viewBox="0 0 64 64" className="size-16" fill="none">
-          <motion.circle
-            cx="32"
-            cy="32"
-            r="28"
-            stroke="var(--blue)"
-            strokeWidth="3"
-            initial={{ pathLength: 0, rotate: -90 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-            style={{ originX: "50%", originY: "50%" }}
-          />
-          <motion.path
-            d="M20 33 L28.5 41.5 L45 24"
-            stroke="var(--blue)"
-            strokeWidth="3.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 0.45, delay: 0.55, ease: [0.22, 1, 0.36, 1] }}
-          />
-        </svg>
-      ) : (
+      {!inbox && (
         <div className="grid size-14 place-items-center rounded-full bg-pill text-fg-3">
           {searching ? <SearchX className="size-6" /> : <Inbox className="size-6" />}
         </div>
       )}
-      <p className="mt-5 text-[17px] font-bold text-fg">
-        {searching ? "見つかりませんでした" : inbox ? "すべて片づきました" : filtered ? "未読はありません" : "メールはありません"}
-      </p>
-      <p className="mt-1.5 text-[13px] leading-relaxed text-fg-3">
-        {searching
-          ? "差出人・件名・本文の一部で探せます"
-          : inbox
-            ? "新しいメールが届けば、すぐにここに現れます"
-            : "このフォルダにはまだ何もありません"}
+      <p className={cn("text-[15px] font-medium text-fg-3", !inbox && "mt-4")}>
+        {searching ? "見つかりませんでした" : filtered ? "未読メッセージはありません" : "メッセージはありません"}
       </p>
     </motion.div>
   );

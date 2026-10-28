@@ -110,7 +110,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   ref,
 ) {
   const variants: Record<Variant, string> = {
-    primary: "bg-blue text-white shadow-[0_6px_20px_-8px_var(--blue)] hover:brightness-110",
+    primary: "bg-blue text-white hover:brightness-110",
     secondary: "bg-surface-raised text-fg border border-line hover:border-line-hover hover:bg-surface-hover",
     outline: "border border-line text-fg hover:border-line-hover hover:bg-pill",
     ghost: "text-fg-2 hover:text-fg hover:bg-pill",
@@ -382,9 +382,9 @@ export function RollingNumber({ value, className }: { value: number; className?:
             <motion.span
               key={d}
               className="absolute inset-0"
-              initial={{ y: "-100%", opacity: 0, filter: "blur(2px)" }}
-              animate={{ y: "0%", opacity: 1, filter: "blur(0px)" }}
-              exit={{ y: "100%", opacity: 0, filter: "blur(2px)" }}
+              initial={{ y: "-100%", opacity: 0 }}
+              animate={{ y: "0%", opacity: 1 }}
+              exit={{ y: "100%", opacity: 0 }}
               transition={spring.snappy}
             >
               {d}

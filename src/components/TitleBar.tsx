@@ -5,7 +5,7 @@ import { useStore } from "../lib/store";
 import { useShallow } from "zustand/react/shallow";
 import { windowAction } from "../lib/api";
 import { spring } from "../lib/motion";
-import { IconButton, Kbd, cn } from "./ui";
+import { IconButton, cn } from "./ui";
 
 export const searchInputRef = { current: null as HTMLInputElement | null };
 
@@ -62,12 +62,12 @@ export function TitleBar() {
       {/* 検索 — EasyUI iOS-style Search Bar：フォーカスで幅が広がる */}
       <div data-tauri-drag-region className="flex flex-1 justify-center">
         <motion.label
-          animate={{ width: focused || value ? 580 : 400 }}
+          animate={{ width: 420 }}
           transition={spring.smooth}
           className={cn(
             "relative flex h-[32px] max-w-full cursor-text items-center gap-2.5 rounded-full border px-3.5 transition-[background,border-color,box-shadow] duration-300",
             focused
-              ? "capsule border-transparent shadow-[0_0_0_3.5px_color-mix(in_srgb,var(--blue)_35%,transparent)]"
+              ? "capsule border-transparent shadow-[0_0_0_3px_color-mix(in_srgb,var(--blue)_45%,transparent)]"
               : "capsule border-transparent",
           )}
         >
@@ -86,7 +86,7 @@ export function TitleBar() {
               }
               if (e.key === "Enter") setSearch(value);
             }}
-            placeholder="メール、差出人、本文を検索"
+            placeholder="検索"
             className="h-full min-w-0 flex-1 bg-transparent text-[13px] text-fg placeholder:text-fg-3 focus:outline-none"
             spellCheck={false}
           />
@@ -108,18 +108,12 @@ export function TitleBar() {
               >
                 <X className="size-2.5" strokeWidth={3} />
               </motion.button>
-            ) : (
-              <motion.span key="hint" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex gap-1">
-                <Kbd>Ctrl</Kbd>
-                <Kbd>K</Kbd>
-              </motion.span>
-            )}
+            ) : null}
           </AnimatePresence>
         </motion.label>
       </div>
 
       <div className="flex items-center gap-0.5">
-        <SyncLabel busy={busy} />
         {errors.length > 0 && (
           <button
             onClick={() => setDialog("settings")}
@@ -157,17 +151,6 @@ export function TitleBar() {
         </WinButton>
       </div>
     </header>
-  );
-}
-
-function SyncLabel({ busy }: { busy: boolean }) {
-  const accounts = useStore((s) => s.accounts.length);
-  if (!accounts) return null;
-  return (
-    <span className="mr-2 flex items-center gap-2 text-[11.5px] text-fg-3">
-      <span className={cn("size-1.5 rounded-full", busy ? "breathe bg-fg-2" : "bg-[#3fb27f] shadow-[0_0_8px_#3fb27f]")} />
-      {busy ? "同期しています" : "最新の状態"}
-    </span>
   );
 }
 

@@ -43,10 +43,10 @@ type Seed = {
 const newsletter = (title: string, lead: string) => `
 <div style="font-family:-apple-system,Segoe UI,sans-serif;max-width:600px;margin:0 auto;color:#1d1d1f">
   <div style="background:#f5f5f7;border-radius:14px;padding:36px 32px">
-    <p style="font-size:13px;color:#6e6e73;margin:0 0 8px">週刊ニュースレター</p>
+    <p style="font-size:13px;color:#6e6e73;margin:0 0 8px">カフェ ミモザ</p>
     <h1 style="font-size:28px;line-height:1.2;margin:0 0 14px">${title}</h1>
     <p style="font-size:16px;line-height:1.7;margin:0 0 22px;color:#3a3a3c">${lead}</p>
-    <a href="https://example.com" style="display:inline-block;background:#1d1d1f;color:#fff;text-decoration:none;padding:10px 18px;border-radius:999px;font-size:14px">続きを読む</a>
+    <a href="https://example.com" style="display:inline-block;background:#1d1d1f;color:#fff;text-decoration:none;padding:10px 18px;border-radius:999px;font-size:14px">メニューを見る</a>
   </div>
   <img src="https://example.com/banner.png" width="600" height="200" alt="" style="display:block;margin-top:16px;border-radius:12px;background:#e5e5ea">
   <p style="font-size:12px;color:#86868b;margin-top:24px">配信停止は<a href="https://example.com/unsub" style="color:#86868b">こちら</a></p>
@@ -80,11 +80,12 @@ const seeds: Seed[] = [
     text: "11月1日〜15日のシフトが確定しました。アプリから確認してください。\n変更希望は11月3日までに店長へ連絡してください。",
   },
   {
-    acc: "g", box: "INBOX", from: ["Design Weekly", "hello@designweekly.example"], subject: "動きのあるUIをつくる7つの原則",
+    acc: "g", box: "INBOX", from: ["カフェ ミモザ", "news@cafe-mimosa.example"], subject: "11月の営業時間と季節のメニューのお知らせ",
     ago: 20 * h,
-    text: "スプリング物理を使ったモーションの考え方を特集しました。",
-    html: newsletter("動きのあるUIをつくる7つの原則", "ばねの硬さ・減衰・質量。この3つの数字だけで、インターフェースの手触りは大きく変わります。今週は実例とともに解説します。"),
+    text: "いつもご来店ありがとうございます。11月の営業時間と、季節のメニューのお知らせです。",
+    html: newsletter("11月の営業時間のお知らせ", "11月23日（月・祝）は貸切営業のため、15時で閉店いたします。季節限定のりんごとシナモンのタルトは11月30日までの販売です。"),
   },
+
   {
     acc: "i", box: "INBOX", from: ["田中 健", "ken.tanaka@icloud.example"], subject: "スキー旅行の新幹線パック、申し込みました",
     ago: 1 * d + 2 * h,

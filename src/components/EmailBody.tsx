@@ -167,13 +167,13 @@ function linkify(text: string): ReactNode[] {
 export function BlockedBanner({ count, onShow, onTrust }: { count: number; onShow: () => void; onTrust: () => void }) {
   if (count <= 0) return null;
   return (
-    <div className="mb-3 flex items-center gap-3 rounded-[10px] border border-line bg-surface-raised px-3 py-2 text-xs text-fg-2">
+    <div className="mb-3 flex items-center gap-3 rounded-[10px] bg-pill px-3 py-1.5 text-xs text-fg-2">
       <ImageOff className="size-4 shrink-0 text-fg-3" />
-      <span className="flex-1">開封を知られないよう、外部の画像を止めています</span>
-      <button onClick={onShow} className={cn("cursor-default rounded-md px-2 py-1 font-medium text-fg hover:bg-pill")}>
-        画像を表示
+      <span className="flex-1">外部画像を表示していません</span>
+      <button onClick={onShow} className={cn("cursor-default rounded-md px-2 py-1 font-medium text-blue hover:bg-pill-active")}>
+        表示
       </button>
-      <button onClick={onTrust} className="cursor-default rounded-md px-2 py-1 text-fg-2 hover:bg-pill hover:text-fg">
+      <button onClick={onTrust} className="cursor-default rounded-md px-2 py-1 text-blue hover:bg-pill-active">
         この差出人は常に表示
       </button>
     </div>
