@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Check, ExternalLink, Eye, EyeOff, Lock } from "lucide-react";
+import { GoogleSignIn } from "./GoogleSignIn";
 import { useStore } from "../lib/store";
 import { api, openExternal } from "../lib/api";
 import type { Provider } from "../lib/types";
@@ -37,6 +38,7 @@ export function AddAccountDialog() {
   const setDialog = useStore((s) => s.setDialog);
   const accounts = useStore((s) => s.accounts);
   const [provider, setProvider] = useState<Provider | null>(null);
+  const [workspace, setWorkspace] = useState(false);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -47,6 +49,7 @@ export function AddAccountDialog() {
   useEffect(() => {
     if (open) {
       setProvider(null);
+      setWorkspace(false);
       setEmail("");
       setName("");
       setPassword("");
@@ -81,13 +84,24 @@ export function AddAccountDialog() {
       open={open}
       onClose={close}
       width={520}
-      title={provider ? `${g!.name} を追加` : "アカウントを追加"}
-      description={provider ? "アプリ用パスワードでサーバーに直接接続します。パスワードは Windows の資格情報マネージャーに保存されます。" : "追加するメールサービスを選んでください。あとから何個でも追加できます。"}
-      dismissable={accounts.length > 0 || !!provider}
+      title={workspace ? "大学・会社の Google アカウント" : provider ? `${g!.name} を追加` : "アカウントを追加"}
+      description={
+        workspace
+          ? "アプリ パスワードが使えないアカウント向けです。ブラウザで Google にサインインして接続します。"
+          : provider
+            ? "アプリ用パスワードでサーバーに直接接続します。パスワードは Windows の資格情報マネージャーに保存されます。"
+            : "追加するメールサービスを選んでください。あとから何個でも追加できます。"
+      }
+      dismissable={accounts.length > 0 || !!provider || workspace}
     >
       <AnimatePresence mode="wait" initial={false}>
-        {!provider ? (
-          <motion.div key="pick" initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} transition={spring.gentle} className="grid grid-cols-2 gap-3 p-6">
+        {workspace ? (
+          <motion.div key="google" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 12 }} transition={spring.gentle}>
+            <GoogleSignIn onBack={() => setWorkspace(false)} onDone={() => setTimeout(() => setDialog(null), 900)} />
+          </motion.div>
+        ) : !provider ? (
+          <motion.div key="pick" initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} transition={spring.gentle} className="space-y-3 p-6">
+           <div className="grid grid-cols-2 gap-3">
             {(["gmail", "icloud"] as Provider[]).map((p) => (
               <motion.button
                 key={p}
@@ -103,6 +117,17 @@ export function AddAccountDialog() {
                 </span>
               </motion.button>
             ))}
+           </div>
+            <button
+              onClick={() => setWorkspace(true)}
+              className="flex w-full cursor-default items-center gap-3 rounded-[14px] border border-line bg-surface-raised p-4 text-left transition-colors hover:border-line-hover hover:bg-surface-hover"
+            >
+              <ProviderMark p="gmail" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-[14px] font-semibold text-fg">大学・会社の Google アカウント</span>
+                <span className="mt-0.5 block text-xs text-fg-3">アプリ パスワードが作れない場合はこちら（Google でサインイン）</span>
+              </span>
+            </button>
           </motion.div>
         ) : (
           <motion.form

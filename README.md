@@ -37,6 +37,18 @@ Fumi はアプリ用パスワードで IMAP / SMTP に直接接続します。�
 2. <https://myaccount.google.com/apppasswords> で「Fumi」という名前のアプリ パスワードを作成
 3. Fumi の「アカウントを追加 → Gmail」にメールアドレスと 16 文字のパスワードを入力
 
+**大学・会社の Google アカウント（Google Workspace）**
+
+管理者の設定でアプリ パスワードが作れないアカウントは、「Google でサインイン」で追加します。最初に一度だけ、自分用のサインイン設定を Google Cloud で作ります。
+
+1. [Google Cloud コンソール](https://console.cloud.google.com/projectcreate)でプロジェクトを作成
+2. [Google Auth Platform](https://console.cloud.google.com/auth/overview) でアプリ名「Fumi」、対象「外部」で設定
+3. 「対象」で公開ステータスを「本番環境」に（テストのままだと 7 日ごとにサインインし直しになります）
+4. [クライアント](https://console.cloud.google.com/auth/clients)で「デスクトップ アプリ」を作成し、クライアント ID とシークレットを Fumi に貼り付け
+5. 「Google でサインイン」を押し、ブラウザで大学のアカウントにサインインして許可
+
+大学の管理者が IMAP や外部アプリの利用を止めている場合は、この方法でも接続できません（サインイン画面に「管理者によってブロックされています」などと表示されます）。
+
 **iCloud メール**
 1. <https://account.apple.com/> の「サインインとセキュリティ → App 用パスワード」で作成
 2. Fumi の「アカウントを追加 → iCloud メール」に @icloud.com のアドレスとパスワードを入力

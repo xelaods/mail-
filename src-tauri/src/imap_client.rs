@@ -25,8 +25,29 @@ fn tls() -> TlsConnector {
     TlsConnector::from(Arc::new(config))
 }
 
+/// ログインに使う資格情報
+#[derive(Clone)]
+pub enum Credential {
+    /// アプリ用パスワード
+    Password(String),
+    /// Google でサインインして得たアクセストークン（XOAUTH2）
+    OAuth(String),
+}
+
+struct XOAuth2 {
+    email: String,
+    token: String,
+}
+
+impl async_imap::Authenticator for XOAuth2 {
+    type Response = String;
+    fn process(&mut self, _challenge: &[u8]) -> String {
+        format!("user={}\x01auth=Bearer {}\x01\x01", self.email, self.token)
+    }
+}
+
 /// サーバーに接続してログインする
-pub async fn connect(provider: Provider, email: &str, password: &str) -> Result<Session> {
+pub async fn connect(provider: Provider, email: &str, credential: &Credential) -> Result<Session> {
     let (host, port) = provider.imap_host();
     let tcp = tokio::time::timeout(std::time::Duration::from_secs(20), TcpStream::connect((host, port)))
         .await
@@ -42,8 +63,16 @@ pub async fn connect(provider: Provider, email: &str, password: &str) -> Result<
         .await?
         .ok_or_else(|| anyhow!("サーバーから応答がありません"))?;
 
-    // アプリ用パスワードはスペース区切りで表示されるので取り除く
-    let password: String = password.chars().filter(|c| !c.is_whitespace()).collect();
+    let password = match credential {
+        Credential::OAuth(token) => {
+            let auth = XOAuth2 { email: email.trim().to_string(), token: token.clone() };
+            return client.authenticate("XOAUTH2", auth).await.map_err(|(e, _)| {
+                anyhow!("Google のサインインで接続できませんでした。大学・会社のアカウントでは、管理者が IMAP やこのアプリの利用を止めている可能性があります（{e}）")
+            });
+        }
+        // アプリ用パスワードはスペース区切りで表示されるので取り除く
+        Credential::Password(p) => p.chars().filter(|c| !c.is_whitespace()).collect::<String>(),
+    };
     let session = client.login(email.trim(), &password).await.map_err(|(e, _)| {
         let msg = e.to_string();
         if msg.contains("AUTHENTICATIONFAILED") || msg.to_lowercase().contains("invalid credentials") || msg.contains("NO") {

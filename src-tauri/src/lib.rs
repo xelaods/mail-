@@ -3,6 +3,7 @@ mod engine;
 mod imap_client;
 mod mime;
 mod model;
+mod oauth;
 mod secrets;
 mod smtp;
 
@@ -30,6 +31,28 @@ async fn list_accounts(state: State<'_, AppState>) -> Res<Vec<Account>> {
     state.engine.db.accounts().map_err(err)
 }
 
+/// 新しいアカウントを保存して同期を始める
+async fn register(engine: &Arc<Engine>, provider: Provider, email: String, name: &str, secret: &str) -> Res<Account> {
+    let count = engine.db.accounts().map_err(err)?.len() as i64;
+    let account = Account {
+        id: uuid::Uuid::new_v4().to_string(),
+        provider,
+        name: if name.trim().is_empty() {
+            email.split('@').next().unwrap_or("").to_string()
+        } else {
+            name.trim().to_string()
+        },
+        email,
+        color: count % COLORS,
+        signature: String::new(),
+    };
+    secrets::set_password(&account.id, secret).map_err(err)?;
+    engine.db.insert_account(&account).map_err(err)?;
+    engine.refresh_mailboxes(&account).await.map_err(err)?;
+    engine.start_watch(account.clone());
+    Ok(account)
+}
+
 #[tauri::command]
 async fn add_account(state: State<'_, AppState>, input: NewAccount) -> Res<Account> {
     let engine = state.engine.clone();
@@ -37,25 +60,30 @@ async fn add_account(state: State<'_, AppState>, input: NewAccount) -> Res<Accou
     if engine.db.accounts().map_err(err)?.iter().any(|a| a.email == email) {
         return Err("このアカウントは追加済みです".into());
     }
-    Engine::verify(input.provider, &email, &input.password).await.map_err(err)?;
-    let count = engine.db.accounts().map_err(err)?.len() as i64;
-    let account = Account {
-        id: uuid::Uuid::new_v4().to_string(),
-        provider: input.provider,
-        name: if input.name.trim().is_empty() {
-            email.split('@').next().unwrap_or("").to_string()
-        } else {
-            input.name.trim().to_string()
-        },
-        email,
-        color: count % COLORS,
-        signature: String::new(),
-    };
-    secrets::set_password(&account.id, &input.password).map_err(err)?;
-    engine.db.insert_account(&account).map_err(err)?;
-    engine.refresh_mailboxes(&account).await.map_err(err)?;
-    engine.start_watch(account.clone());
-    Ok(account)
+    let credential = imap_client::Credential::Password(input.password.clone());
+    Engine::verify(input.provider, &email, &credential).await.map_err(err)?;
+    register(&engine, input.provider, email, &input.name, &input.password).await
+}
+
+/// 「Google でサインイン」でアカウントを追加する（大学・会社の Google アカウント向け）
+#[tauri::command]
+async fn add_google_account(state: State<'_, AppState>, name: String, hint: Option<String>) -> Res<Account> {
+    let engine = state.engine.clone();
+    let client = engine.google_client().map_err(err)?;
+    let signed = oauth::sign_in(&client, hint.as_deref(), |url| {
+        tauri_plugin_opener::open_url(url, None::<&str>).map_err(|e| anyhow::anyhow!("ブラウザを開けませんでした: {e}"))
+    })
+    .await
+    .map_err(err)?;
+    if engine.db.accounts().map_err(err)?.iter().any(|a| a.email == signed.email) {
+        return Err(format!("{} は追加済みです", signed.email));
+    }
+    let (token, _) = oauth::access_token(&client, &signed.refresh_token).await.map_err(err)?;
+    Engine::verify(Provider::Gmail, &signed.email, &imap_client::Credential::OAuth(token))
+        .await
+        .map_err(err)?;
+    let secret = format!("{}{}", oauth::REFRESH_PREFIX, signed.refresh_token);
+    register(&engine, Provider::Gmail, signed.email, &name, &secret).await
 }
 
 #[tauri::command]
@@ -216,6 +244,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             list_accounts,
             add_account,
+            add_google_account,
             update_account,
             remove_account,
             list_mailboxes,

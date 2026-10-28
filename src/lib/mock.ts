@@ -312,6 +312,9 @@ export async function mockBackend(cmd: string, args: Record<string, unknown>): P
       return null;
     case "is_trusted":
       return false;
+    case "add_google_account":
+      await wait(1200);
+      throw new Error("デモ表示では Google にサインインできません。Windows アプリ版でお試しください。");
     case "add_account":
       await wait(900);
       throw new Error("デモ表示ではアカウントを追加できません。Windows アプリ版で追加してください。");

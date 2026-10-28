@@ -34,6 +34,8 @@ pub struct Engine {
     app: AppHandle,
     sessions: parking_lot::Mutex<HashMap<String, Slot>>,
     watchers: parking_lot::Mutex<HashMap<String, watch::Sender<bool>>>,
+    /// Google のアクセストークン（期限付き）をアカウントごとに覚えておく
+    tokens: parking_lot::Mutex<HashMap<String, (String, std::time::Instant)>>,
 }
 
 pub struct NewMail {
@@ -48,7 +50,36 @@ impl Engine {
             app,
             sessions: Default::default(),
             watchers: Default::default(),
+            tokens: Default::default(),
         })
+    }
+
+    /// Google OAuth のクライアント（ユーザーが設定で登録したもの）
+    pub fn google_client(&self) -> Result<crate::oauth::GoogleClient> {
+        let id = self.db.setting("google_client_id")?.filter(|s| !s.trim().is_empty());
+        let secret = self.db.setting("google_client_secret")?.unwrap_or_default();
+        let id = id.context("Google でサインインするための設定（クライアント ID）がありません")?;
+        Ok(crate::oauth::GoogleClient { id: id.trim().to_string(), secret: secret.trim().to_string() })
+    }
+
+    /// 接続に使う資格情報。Google でサインインしたアカウントは、必要ならトークンを更新する
+    pub async fn credential(&self, account: &Account) -> Result<imap::Credential> {
+        let secret = secrets::get_password(&account.id)?;
+        let Some(refresh) = secret.strip_prefix(crate::oauth::REFRESH_PREFIX) else {
+            return Ok(imap::Credential::Password(secret));
+        };
+        if let Some((token, until)) = self.tokens.lock().get(&account.id).cloned() {
+            if until > std::time::Instant::now() + Duration::from_secs(120) {
+                return Ok(imap::Credential::OAuth(token));
+            }
+        }
+        let client = self.google_client()?;
+        let (token, expires) = crate::oauth::access_token(&client, refresh).await?;
+        self.tokens.lock().insert(
+            account.id.clone(),
+            (token.clone(), std::time::Instant::now() + Duration::from_secs(expires)),
+        );
+        Ok(imap::Credential::OAuth(token))
     }
 
     fn slot(&self, account_id: &str) -> Slot {
@@ -82,8 +113,8 @@ impl Engine {
         let mut guard = slot.lock().await;
         for attempt in 0..2 {
             if guard.is_none() {
-                let password = secrets::get_password(&account.id)?;
-                *guard = Some(imap::connect(account.provider, &account.email, &password).await?);
+                let credential = self.credential(account).await?;
+                *guard = Some(imap::connect(account.provider, &account.email, &credential).await?);
             }
             let session = guard.as_mut().expect("session");
             match f(session).await {
@@ -446,8 +477,8 @@ impl Engine {
 
     /// 受信トレイで IDLE し、何か変化があれば true
     async fn idle_once(&self, account: &Account, stop: &mut watch::Receiver<bool>) -> Result<bool> {
-        let password = secrets::get_password(&account.id)?;
-        let mut session = imap::connect(account.provider, &account.email, &password).await?;
+        let credential = self.credential(account).await?;
+        let mut session = imap::connect(account.provider, &account.email, &credential).await?;
         let inbox = self
             .db
             .mailbox_by_role(&account.id, "inbox")?
@@ -637,9 +668,9 @@ impl Engine {
 
     pub async fn send(&self, mail: OutgoingMail) -> Result<()> {
         let account = self.db.account(&mail.account_id)?;
-        let password = secrets::get_password(&account.id)?;
+        let credential = self.credential(&account).await?;
         let message = crate::smtp::build(&account, &mail)?;
-        crate::smtp::send(&account, &password, &message).await?;
+        crate::smtp::send(&account, &credential, &message).await?;
 
         if !account.provider.auto_saves_sent() {
             let raw = message.formatted();
@@ -666,8 +697,8 @@ impl Engine {
     }
 
     /// 接続テスト（アカウント追加時）
-    pub async fn verify(provider: Provider, email: &str, password: &str) -> Result<()> {
-        let mut s = imap::connect(provider, email, password).await?;
+    pub async fn verify(provider: Provider, email: &str, credential: &imap::Credential) -> Result<()> {
+        let mut s = imap::connect(provider, email, credential).await?;
         let _ = s.logout().await;
         Ok(())
     }

@@ -5,9 +5,10 @@ use std::time::Duration;
 use anyhow::{anyhow, Context, Result};
 use lettre::message::header::ContentType;
 use lettre::message::{Attachment, Mailbox, MultiPart, SinglePart};
-use lettre::transport::smtp::authentication::Credentials;
+use lettre::transport::smtp::authentication::{Credentials, Mechanism};
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
 
+use crate::imap_client::Credential;
 use crate::model::{Account, OutgoingMail, Provider};
 
 fn parse_mailbox(s: &str) -> Result<Mailbox> {
@@ -85,10 +86,13 @@ pub fn build(account: &Account, mail: &OutgoingMail) -> Result<Message> {
     Ok(message)
 }
 
-pub async fn send(account: &Account, password: &str, message: &Message) -> Result<()> {
+pub async fn send(account: &Account, credential: &Credential, message: &Message) -> Result<()> {
     let (host, port) = account.provider.smtp_host();
-    let password: String = password.chars().filter(|c| !c.is_whitespace()).collect();
-    let creds = Credentials::new(account.email.clone(), password);
+    let (secret, mechanisms) = match credential {
+        Credential::Password(p) => (p.chars().filter(|c| !c.is_whitespace()).collect::<String>(), vec![Mechanism::Plain, Mechanism::Login]),
+        Credential::OAuth(token) => (token.clone(), vec![Mechanism::Xoauth2]),
+    };
+    let creds = Credentials::new(account.email.clone(), secret);
     let builder = match account.provider {
         Provider::Gmail => AsyncSmtpTransport::<Tokio1Executor>::relay(host)?,
         Provider::Icloud => AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(host)?,
@@ -96,6 +100,7 @@ pub async fn send(account: &Account, password: &str, message: &Message) -> Resul
     let transport = builder
         .port(port)
         .credentials(creds)
+        .authentication(mechanisms)
         .timeout(Some(Duration::from_secs(60)))
         .build();
     transport
