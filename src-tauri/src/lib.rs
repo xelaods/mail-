@@ -83,6 +83,7 @@ async fn add_google_account(state: State<'_, AppState>, name: String, hint: Opti
         .await
         .map_err(err)?;
     let secret = format!("{}{}", oauth::REFRESH_PREFIX, signed.refresh_token);
+    let name = if name.trim().is_empty() { signed.name.clone() } else { name };
     register(&engine, Provider::Gmail, signed.email, &name, &secret).await
 }
 
@@ -106,6 +107,12 @@ async fn reauth_google_account(state: State<'_, AppState>, id: String) -> Res<()
     engine.stop_watch(&account.id);
     engine.start_watch(account);
     Ok(())
+}
+
+/// Google でサインインの設定がアプリに組み込まれているか
+#[tauri::command]
+async fn google_builtin() -> bool {
+    oauth::builtin_client().is_some()
 }
 
 #[tauri::command]
@@ -268,6 +275,7 @@ pub fn run() {
             add_account,
             add_google_account,
             reauth_google_account,
+            google_builtin,
             update_account,
             remove_account,
             list_mailboxes,

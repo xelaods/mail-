@@ -56,6 +56,10 @@ impl Engine {
 
     /// Google OAuth のクライアント（ユーザーが設定で登録したもの）
     pub fn google_client(&self) -> Result<crate::oauth::GoogleClient> {
+        // ビルド時に組み込まれていれば、それを使う（設定画面での準備が不要になる）
+        if let Some(c) = crate::oauth::builtin_client() {
+            return Ok(c);
+        }
         let id = self.db.setting("google_client_id")?.filter(|s| !s.trim().is_empty());
         let secret = self.db.setting("google_client_secret")?.unwrap_or_default();
         let id = id.context("Google でサインインするための設定（クライアント ID）がありません")?;

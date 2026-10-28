@@ -7,7 +7,7 @@ import { spring } from "../lib/motion";
 import { Button, Field, inputClass } from "./ui";
 
 /** 大学・会社の Google アカウント（アプリ パスワードが作れない場合）を Google でサインインして追加する */
-export function GoogleSignIn({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
+export function GoogleSignIn({ onBack, onDone, builtin }: { onBack: () => void; onDone: () => void; builtin: boolean }) {
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [configured, setConfigured] = useState<boolean | null>(null);
@@ -18,6 +18,10 @@ export function GoogleSignIn({ onBack, onDone }: { onBack: () => void; onDone: (
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (builtin) {
+      setConfigured(true);
+      return;
+    }
     Promise.all([api.getSetting("google_client_id"), api.getSetting("google_client_secret")]).then(([id, secret]) => {
       setClientId(id ?? "");
       setClientSecret(secret ?? "");
@@ -25,7 +29,7 @@ export function GoogleSignIn({ onBack, onDone }: { onBack: () => void; onDone: (
       setConfigured(ok);
       setShowSetup(!ok);
     });
-  }, []);
+  }, [builtin]);
 
   const saveClient = async () => {
     await api.setSetting("google_client_id", clientId.trim());
@@ -36,7 +40,7 @@ export function GoogleSignIn({ onBack, onDone }: { onBack: () => void; onDone: (
 
   const signIn = async () => {
     setError(null);
-    if (showSetup) await saveClient();
+    if (!builtin && showSetup) await saveClient();
     setState("waiting");
     try {
       await api.addGoogleAccount(name.trim(), email.trim());
@@ -51,11 +55,12 @@ export function GoogleSignIn({ onBack, onDone }: { onBack: () => void; onDone: (
     }
   };
 
-  const canSignIn = !!clientId.trim() && !!clientSecret.trim() && state === "idle";
+  const canSignIn = (builtin || (!!clientId.trim() && !!clientSecret.trim())) && state === "idle";
 
   return (
     <div className="space-y-4 px-6 pb-6 pt-5">
-      {/* 初回だけ必要な準備：自分用の Google Cloud のクライアントを作る */}
+      {/* 初回だけ必要な準備：自分用の Google Cloud のクライアントを作る（組み込み済みなら不要） */}
+      {!builtin && (
       <div className="rounded-[14px] border border-line-subtle bg-surface-raised">
         <button
           type="button"
@@ -111,6 +116,7 @@ export function GoogleSignIn({ onBack, onDone }: { onBack: () => void; onDone: (
           )}
         </AnimatePresence>
       </div>
+      )}
 
       <Field label="メールアドレス" hint="入れておくと、サインイン画面でこのアカウントが選ばれた状態になります">
         <input className={inputClass} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@your-university.ac.jp" spellCheck={false} />
@@ -120,7 +126,7 @@ export function GoogleSignIn({ onBack, onDone }: { onBack: () => void; onDone: (
       </Field>
 
       <p className="text-xs leading-relaxed text-fg-3">
-        ブラウザが開いたら大学のアカウントでサインインし、アクセスを許可してください。「このアプリは確認されていません」と出た場合は、「詳細」から先へ進めます（自分で作った設定のためです）。
+        ブラウザが開いたら Google アカウントでサインインし、アクセスを許可してください。「このアプリは確認されていません」と出た場合は、「詳細」から先へ進めます。
       </p>
 
       <AnimatePresence>

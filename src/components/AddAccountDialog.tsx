@@ -39,6 +39,10 @@ export function AddAccountDialog() {
   const accounts = useStore((s) => s.accounts);
   const [provider, setProvider] = useState<Provider | null>(null);
   const [workspace, setWorkspace] = useState(false);
+  const [builtin, setBuiltin] = useState(false);
+  useEffect(() => {
+    api.googleBuiltin().then(setBuiltin).catch(() => setBuiltin(false));
+  }, []);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -50,6 +54,8 @@ export function AddAccountDialog() {
     if (open) {
       setProvider(null);
       setWorkspace(false);
+      setGState("idle");
+      setGError(null);
       setEmail("");
       setName("");
       setPassword("");
@@ -58,7 +64,26 @@ export function AddAccountDialog() {
     }
   }, [open]);
 
-  const close = () => state !== "connecting" && setDialog(null);
+  const [gState, setGState] = useState<"idle" | "waiting" | "done">("idle");
+  const [gError, setGError] = useState<string | null>(null);
+  // 組み込みのクライアントがあれば、ボタン一つでブラウザのサインインへ
+  const googleNow = async () => {
+    setGError(null);
+    setGState("waiting");
+    try {
+      await api.addGoogleAccount("", "");
+      setGState("done");
+      const st = useStore.getState();
+      await st.reloadMeta();
+      st.refreshList();
+      setTimeout(() => setDialog(null), 900);
+    } catch (e) {
+      setGState("idle");
+      setGError(String(e));
+    }
+  };
+
+  const close = () => state !== "connecting" && gState !== "waiting" && setDialog(null);
   const g = provider ? guide[provider] : null;
   const canSubmit = !!provider && /.+@.+\..+/.test(email) && password.replace(/\s|-/g, "").length >= 8;
 
@@ -84,10 +109,12 @@ export function AddAccountDialog() {
       open={open}
       onClose={close}
       width={520}
-      title={workspace ? "大学・会社の Google アカウント" : provider ? `${g!.name} を追加` : "アカウントを追加"}
+      title={workspace ? (builtin ? "Google でサインイン" : "大学・会社の Google アカウント") : provider ? `${g!.name} を追加` : "アカウントを追加"}
       description={
         workspace
-          ? "アプリ パスワードが使えないアカウント向けです。ブラウザで Google にサインインして接続します。"
+          ? builtin
+            ? "Gmail、大学・会社の Google アカウントのどちらも使えます。"
+            : "アプリ パスワードが使えないアカウント向けです。ブラウザで Google にサインインして接続します。"
           : provider
             ? "アプリ用パスワードでサーバーに直接接続します。パスワードは Windows の資格情報マネージャーに保存されます。"
             : "追加するメールサービスを選んでください。あとから何個でも追加できます。"
@@ -97,10 +124,26 @@ export function AddAccountDialog() {
       <AnimatePresence mode="wait" initial={false}>
         {workspace ? (
           <motion.div key="google" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 12 }} transition={spring.gentle}>
-            <GoogleSignIn onBack={() => setWorkspace(false)} onDone={() => setTimeout(() => setDialog(null), 900)} />
+            <GoogleSignIn builtin={builtin} onBack={() => setWorkspace(false)} onDone={() => setTimeout(() => setDialog(null), 900)} />
           </motion.div>
         ) : !provider ? (
           <motion.div key="pick" initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} transition={spring.gentle} className="space-y-3 p-6">
+            {builtin && (
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                transition={spring.snappy}
+                disabled={gState !== "idle"}
+                onClick={googleNow}
+                className="flex h-12 w-full cursor-default items-center justify-center gap-3 rounded-[14px] bg-blue text-[14.5px] font-semibold text-white transition-[filter] hover:brightness-110 disabled:opacity-80"
+              >
+                {gState === "done" ? <Check className="size-5" /> : <GoogleMark />}
+                {gState === "waiting" ? "ブラウザでサインインしてください…" : gState === "done" ? "追加しました" : "Google でサインイン"}
+              </motion.button>
+            )}
+            {builtin && gError && (
+              <p className="selectable rounded-[10px] border border-danger/40 bg-[color-mix(in_srgb,var(--danger)_8%,transparent)] px-3 py-2 text-xs leading-relaxed text-danger">{gError}</p>
+            )}
+            {builtin && <p className="pt-1 text-center text-xs text-fg-3">Gmail・大学や会社の Google アカウント</p>}
            <div className="grid grid-cols-2 gap-3">
             {(["gmail", "icloud"] as Provider[]).map((p) => (
               <motion.button
@@ -118,6 +161,7 @@ export function AddAccountDialog() {
               </motion.button>
             ))}
            </div>
+            {!builtin && (
             <button
               onClick={() => setWorkspace(true)}
               className="flex w-full cursor-default items-center gap-3 rounded-[14px] border border-line bg-surface-raised p-4 text-left transition-colors hover:border-line-hover hover:bg-surface-hover"
@@ -128,6 +172,7 @@ export function AddAccountDialog() {
                 <span className="mt-0.5 block text-xs text-fg-3">アプリ パスワードが作れない場合はこちら（Google でサインイン）</span>
               </span>
             </button>
+            )}
           </motion.div>
         ) : (
           <motion.form
@@ -220,6 +265,15 @@ function ProviderMark({ p }: { p: Provider }) {
           <path d="M7 18h10.5a4 4 0 0 0 .6-7.96A5.5 5.5 0 0 0 7.4 9.1 4.5 4.5 0 0 0 7 18Z" />
         </svg>
       )}
+    </span>
+  );
+}
+
+/** 白抜きの「G」：ボタン内で Google でのサインインだと分かる程度の簡素な記号 */
+function GoogleMark() {
+  return (
+    <span className="grid size-6 place-items-center rounded-full bg-white text-[13px] font-bold text-[#1d1d1f]" aria-hidden>
+      G
     </span>
   );
 }

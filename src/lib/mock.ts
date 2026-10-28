@@ -312,6 +312,8 @@ export async function mockBackend(cmd: string, args: Record<string, unknown>): P
       return null;
     case "is_trusted":
       return false;
+    case "google_builtin":
+      return new URLSearchParams(location.search).has("builtin");
     case "add_google_account":
       await wait(1200);
       throw new Error("デモ表示では Google にサインインできません。Windows アプリ版でお試しください。");

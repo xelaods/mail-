@@ -18,7 +18,7 @@ use tokio_rustls::TlsConnector;
 const AUTH_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_HOST: &str = "oauth2.googleapis.com";
 /// IMAP / SMTP に必要なのは mail.google.com。メールアドレスを知るために openid email も
-const SCOPE: &str = "https://mail.google.com/ openid email";
+const SCOPE: &str = "https://mail.google.com/ openid email profile";
 
 /// 資格情報マネージャーに保存する時の印（アプリ パスワードと区別する）
 pub const REFRESH_PREFIX: &str = "oauth-refresh:";
@@ -31,7 +31,20 @@ pub struct GoogleClient {
 
 pub struct SignIn {
     pub email: String,
+    /// Google アカウントの名前（差出人名の初期値に使う）
+    pub name: String,
     pub refresh_token: String,
+}
+
+/// GitHub Actions のビルド時に埋め込まれる Google のクライアント
+/// （デスクトップアプリのクライアント シークレットは秘密として扱われない、と Google が定めている）
+pub fn builtin_client() -> Option<GoogleClient> {
+    let id = option_env!("FUMI_GOOGLE_CLIENT_ID")?.trim();
+    let secret = option_env!("FUMI_GOOGLE_CLIENT_SECRET").unwrap_or("").trim();
+    if id.is_empty() {
+        return None;
+    }
+    Some(GoogleClient { id: id.to_string(), secret: secret.to_string() })
 }
 
 fn b64url(bytes: &[u8]) -> String {
@@ -124,11 +137,18 @@ fn dechunk(s: &str) -> String {
 }
 
 /// id_token（JWT）の中身からメールアドレスを取り出す（署名の検証はしない：Google から直接受け取った値のため）
-fn email_from_id_token(token: &str) -> Option<String> {
+fn id_token_claims(token: &str) -> Option<serde_json::Value> {
     let payload = token.split('.').nth(1)?;
     let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(payload.trim_end_matches('=')).ok()?;
-    let v: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
-    v.get("email")?.as_str().map(|s| s.to_lowercase())
+    serde_json::from_slice(&bytes).ok()
+}
+
+fn email_from_id_token(token: &str) -> Option<String> {
+    id_token_claims(token)?.get("email")?.as_str().map(|s| s.to_lowercase())
+}
+
+fn name_from_id_token(token: &str) -> Option<String> {
+    id_token_claims(token)?.get("name")?.as_str().map(|s| s.trim().to_string())
 }
 
 /// ブラウザで Google のサインイン画面を開き、許可されたら更新トークンを返す
@@ -203,12 +223,10 @@ pub async fn sign_in(client: &GoogleClient, login_hint: Option<&str>, open: impl
         .and_then(|v| v.as_str())
         .context("更新トークンを受け取れませんでした。もう一度サインインしてください")?
         .to_string();
-    let email = json
-        .get("id_token")
-        .and_then(|v| v.as_str())
-        .and_then(email_from_id_token)
-        .context("メールアドレスを確認できませんでした")?;
-    Ok(SignIn { email, refresh_token })
+    let id_token = json.get("id_token").and_then(|v| v.as_str()).unwrap_or("");
+    let email = email_from_id_token(id_token).context("メールアドレスを確認できませんでした")?;
+    let name = name_from_id_token(id_token).unwrap_or_default();
+    Ok(SignIn { email, name, refresh_token })
 }
 
 /// 更新トークンからアクセストークン（約1時間有効）を得る。(token, 有効秒数)

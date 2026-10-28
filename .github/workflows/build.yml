@@ -51,6 +51,9 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 「Google でサインイン」をボタン一つにするため、リポジトリの Secrets から埋め込む
+          FUMI_GOOGLE_CLIENT_ID: ${{ secrets.FUMI_GOOGLE_CLIENT_ID }}
+          FUMI_GOOGLE_CLIENT_SECRET: ${{ secrets.FUMI_GOOGLE_CLIENT_SECRET }}
         with:
           tagName: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
           releaseName: ${{ startsWith(github.ref, 'refs/tags/v') && format('Fumi {0}', github.ref_name) || '' }}
