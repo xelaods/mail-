@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useMotionTemplate, useMotionValue } from "framer-motion";
 import {
   Archive,
   ArchiveRestore,
@@ -54,8 +54,19 @@ export function MessageList() {
 
   const items = useMemo(() => messages.filter((m) => !hidden.has(m.id)), [messages, hidden]);
   const parentRef = useRef<HTMLDivElement>(null);
+  // EasyUI Spotlight Card：カーソルの位置にだけ柔らかい光を落とす
+  const spotX = useMotionValue(0);
+  const spotY = useMotionValue(0);
+  const spotOpacity = useMotionValue(0);
+  const spot = useMotionTemplate`radial-gradient(260px circle at ${spotX}px ${spotY}px, var(--pill-active), transparent 70%)`;
+  const onSpot = (e: React.PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    spotX.set(e.clientX - r.left);
+    spotY.set(e.clientY - r.top + e.currentTarget.scrollTop);
+    spotOpacity.set(1);
+  };
   const compact = settings.density === "compact";
-  const rowHeight = compact ? 58 : settings.previewLines === 2 ? 104 : 82;
+  const rowHeight = compact ? 60 : settings.previewLines === 2 ? 110 : 86;
 
   const virtualizer = useVirtualizer({
     count: items.length,
@@ -105,18 +116,19 @@ export function MessageList() {
   const multiAccount = accounts.length > 1 && view.kind === "unified";
 
   return (
-    <section className="relative flex w-[400px] shrink-0 flex-col border-r border-line-subtle bg-bg max-[1180px]:w-[340px]">
-      <header className="flex h-[60px] shrink-0 items-end justify-between gap-3 px-5 pb-3">
+    <section className="relative flex w-[408px] shrink-0 flex-col border-r border-line-subtle bg-bg/60 max-[1180px]:w-[348px]">
+      <header className="flex h-[72px] shrink-0 items-end justify-between gap-3 px-6 pb-3.5">
         <div className="min-w-0">
-          <h1 className="truncate text-[17px] font-semibold leading-tight tracking-[-0.02em] text-fg">{title}</h1>
-          <p className="mt-0.5 truncate text-xs text-fg-3">
+          <h1 className="truncate text-[21px] font-bold leading-tight text-fg">{title}</h1>
+          <p className="mt-1 truncate text-xs text-fg-3">
             {subtitle ? `${subtitle}　` : ""}
             {loading ? "読み込み中" : items.length === 0 ? "メールはありません" : unread > 0 ? `未読 ${unread}件` : `${items.length}件`}
           </p>
         </div>
       </header>
 
-      <div ref={parentRef} className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden" role="listbox" aria-label={title}>
+      <div ref={parentRef} onPointerMove={onSpot} onPointerLeave={() => spotOpacity.set(0)} className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden" role="listbox" aria-label={title}>
+        <motion.div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 z-0" style={{ height: virtualizer.getTotalSize() || "100%", background: spot, opacity: spotOpacity }} />
         {loading && items.length === 0 ? (
           <ListSkeleton rowHeight={rowHeight} />
         ) : items.length === 0 ? (
@@ -191,26 +203,26 @@ const Row = memo(function Row({
         if (e.ctrlKey || e.metaKey || e.shiftKey || anyChecked) toggleCheck(m.id, e.shiftKey);
         else select(m.id);
       }}
-      className="group relative mx-2 h-[calc(100%-2px)] cursor-default rounded-xl"
+      className="group relative mx-2.5 h-[calc(100%-3px)] cursor-default rounded-[14px]"
     >
       {selected && (
         <motion.div
           layoutId="row-active"
           transition={spring.morph}
-          className="absolute inset-0 rounded-xl border border-line bg-surface shadow-subtle"
+          className="absolute inset-0 rounded-[14px] border border-line bg-surface shadow-card"
         />
       )}
-      {checked && !selected && <div className="absolute inset-0 rounded-xl bg-pill-active" />}
+      {checked && !selected && <div className="absolute inset-0 rounded-[14px] bg-pill-active" />}
       {!selected && !checked && (
-        <div className="absolute inset-0 rounded-xl opacity-0 transition-opacity duration-150 group-hover:bg-pill group-hover:opacity-100" />
+        <div className="absolute inset-0 rounded-[14px] opacity-0 transition-opacity duration-300 group-hover:bg-pill group-hover:opacity-100" />
       )}
 
-      <div className={cn("relative flex h-full gap-3 px-3", compact ? "items-center" : "pt-3")}>
+      <div className={cn("relative flex h-full gap-3.5 px-3.5", compact ? "items-center" : "pt-3.5")}>
         {/* 未読ドット */}
         <span
           className={cn(
-            "absolute left-[3px] size-[6px] rounded-full bg-indicator transition-opacity",
-            compact ? "top-1/2 -translate-y-1/2" : "top-[25px]",
+            "absolute left-[2px] size-[6px] rounded-full bg-indicator shadow-[0_0_10px_var(--indicator)] transition-opacity duration-500",
+            compact ? "top-1/2 -translate-y-1/2" : "top-[28px]",
             unread ? "opacity-100" : "opacity-0",
           )}
         />
@@ -222,11 +234,11 @@ const Row = memo(function Row({
               e.stopPropagation();
               toggleCheck(m.id, e.shiftKey);
             }}
-            className="relative mt-0.5 size-8 shrink-0 cursor-default"
+            className="relative size-[34px] shrink-0 cursor-default"
             aria-label={checked ? "選択を解除" : "選択"}
           >
             <span className={cn("absolute inset-0 transition-opacity", (checked || anyChecked) ? "opacity-0" : "group-hover:opacity-0")}>
-              <Avatar name={m.fromName} email={m.fromAddr} size={32} />
+              <Avatar name={m.fromName} email={m.fromAddr} size={34} />
               {accountDot && (
                 <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-bg" style={{ background: accountDot }} />
               )}
@@ -245,7 +257,7 @@ const Row = memo(function Row({
 
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
-            <span className={cn("min-w-0 flex-1 truncate text-[13.5px]", unread ? "font-semibold text-fg" : "font-medium text-fg-2")}>
+            <span className={cn("min-w-0 flex-1 truncate text-[13.5px]", unread ? "font-bold text-fg" : "font-medium text-fg-2")}>
               {who}
               {m.threadCount > 1 && <span className="ml-1.5 text-xs font-normal text-fg-3 tabular">{m.threadCount}</span>}
             </span>
@@ -254,15 +266,15 @@ const Row = memo(function Row({
             </span>
           </div>
           <div className="mt-[3px] flex items-center gap-1.5">
-            <span className={cn("min-w-0 flex-1 truncate text-[13px]", unread ? "font-medium text-fg" : "text-fg-2")}>
+            <span className={cn("min-w-0 flex-1 truncate text-[13px]", unread ? "font-medium text-fg" : "text-fg-2/90")}>
               {m.subject || "(件名なし)"}
             </span>
             {m.hasAttach && <Paperclip className="size-3.5 shrink-0 text-fg-3" />}
-            {m.flagged && <Star className="size-3.5 shrink-0 fill-[#f5a623] text-[#f5a623]" />}
+            {m.flagged && <Star className="size-3.5 shrink-0 fill-star text-star" />}
           </div>
           {!compact && (
             <p
-              className={cn("mt-[3px] text-[12.5px] leading-[1.5] text-fg-3", lines === 2 ? "line-clamp-2" : "truncate")}
+              className={cn("mt-1 text-[12.5px] leading-[1.6] text-fg-3", lines === 2 ? "line-clamp-2" : "truncate")}
             >
               {m.snippet}
             </p>
@@ -272,7 +284,7 @@ const Row = memo(function Row({
         {/* ホバー時のクイック操作 */}
         <div
           className={cn(
-            "pointer-events-none absolute right-2 flex items-center gap-0.5 rounded-lg border border-line bg-surface p-0.5 opacity-0 shadow-elevated transition-all duration-150 group-hover:pointer-events-auto group-hover:opacity-100",
+            "pointer-events-none absolute right-2 flex items-center gap-0.5 rounded-lg border border-line bg-surface p-0.5 opacity-0 shadow-card transition-all duration-150 group-hover:pointer-events-auto group-hover:opacity-100",
             compact ? "top-1/2 -translate-y-1/2" : "top-2",
           )}
           onClick={(e) => e.stopPropagation()}
@@ -287,7 +299,7 @@ const Row = memo(function Row({
             {unread ? <MailOpen /> : <Mail />}
           </IconButton>
           <IconButton size="sm" label={m.flagged ? "スターを外す" : "スターを付ける"} shortcut="S" onClick={() => triage(m.flagged ? "unflag" : "flag", [m.id])}>
-            <Star className={m.flagged ? "fill-[#f5a623] text-[#f5a623]" : ""} />
+            <Star className={m.flagged ? "fill-star text-star" : ""} />
           </IconButton>
         </div>
       </div>

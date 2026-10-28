@@ -42,24 +42,25 @@ export function Reader() {
   const account = accounts.find((a) => a.id === (current?.accountId ?? summary?.accountId));
 
   return (
-    <section className="flex min-w-0 flex-1 flex-col bg-bg">
+    <section className="relative flex min-w-0 flex-1 flex-col">
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(90%_60%_at_50%_0%,var(--ambient),transparent_70%)]" />
       <Toolbar current={current} />
       <div className="relative min-h-0 flex-1 overflow-y-auto">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={selectedId}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, y: 12, filter: "blur(8px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)", transitionEnd: { filter: "none" } }}
             exit={{ opacity: 0, transition: { duration: 0.08 } }}
             transition={spring.gentle}
-            className="mx-auto w-full max-w-[860px] px-8 pb-24 pt-2"
+            className="relative mx-auto w-full max-w-[880px] px-10 pb-28 pt-4"
           >
-            <h2 className="selectable text-[22px] font-semibold leading-[1.35] tracking-[-0.02em] text-fg">
+            <h2 className="selectable text-[27px] font-bold leading-[1.45] text-fg">
               {current?.subject || summary?.subject || "(件名なし)"}
             </h2>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-fg-3">
+            <div className="mt-3 flex flex-wrap items-center gap-2.5 text-xs text-fg-3">
               {account && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-line-subtle bg-surface-raised px-2 py-0.5">
+                <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-line bg-pill px-2.5">
                   <span className="size-1.5 rounded-full" style={{ background: accountColor(account) }} />
                   {providerLabel(account.provider)}　{account.email}
                 </span>
@@ -67,7 +68,7 @@ export function Reader() {
               {thread && thread.length > 1 && <span>{thread.length}件のメッセージ</span>}
             </div>
 
-            <div className="mt-6 space-y-3">
+            <div className="mt-8 space-y-3">
               {error ? (
                 <div className="rounded-xl border border-line bg-surface p-5 text-sm">
                   <p className="font-medium text-fg">本文を読み込めませんでした</p>
@@ -108,7 +109,7 @@ function Toolbar({ current }: { current?: MessageDetail }) {
   const flagged = thread?.some((m) => m.flagged);
 
   return (
-    <div className="flex h-[52px] shrink-0 items-center gap-0.5 px-4">
+    <div className="relative z-10 flex h-[56px] shrink-0 items-center gap-0.5 px-5">
       {inArchive ? (
         <IconButton label="受信トレイに戻す" shortcut="Shift I" onClick={() => triage("inbox")}>
           <ArchiveRestore />
@@ -129,7 +130,7 @@ function Toolbar({ current }: { current?: MessageDetail }) {
         <Mail />
       </IconButton>
       <IconButton label={flagged ? "スターを外す" : "スターを付ける"} shortcut="S" onClick={() => triage(flagged ? "unflag" : "flag")}>
-        <Star className={cn(flagged && "fill-[#f5a623] text-[#f5a623]")} />
+        <Star className={cn(flagged && "fill-star text-star")} />
       </IconButton>
       <span className="mx-1.5 h-5 w-px bg-line-subtle" />
       <IconButton label="返信" shortcut="R" disabled={!current} onClick={() => current && openComposer("reply", current)}>
@@ -175,18 +176,18 @@ function ThreadMessage({ m, defaultOpen, isLast }: { m: MessageDetail; defaultOp
       layout="position"
       transition={spring.gentle}
       className={cn(
-        "overflow-hidden rounded-[14px] border transition-colors",
-        open ? "border-line bg-surface shadow-subtle" : "border-line-subtle bg-surface-raised hover:border-line",
+        "overflow-hidden rounded-[18px] border transition-[border-color,background] duration-300",
+        open ? "border-line bg-surface shadow-card" : "border-line-subtle bg-pill hover:border-line hover:bg-pill-active",
       )}
     >
       <header
         onClick={() => !isLast || !open ? setOpen(!open) : undefined}
-        className={cn("flex items-start gap-3 px-5 py-4", (!isLast || !open) && "cursor-default")}
+        className={cn("flex items-start gap-3.5 px-6 py-5", (!isLast || !open) && "cursor-default")}
       >
         <Avatar name={m.fromName} email={m.fromAddr} size={36} />
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
-            <span className="truncate text-[14px] font-semibold text-fg">
+            <span className="truncate text-[14.5px] font-bold text-fg">
               {me ? "自分" : displayName(m.fromName, m.fromAddr)}
             </span>
             {open && <span className="selectable truncate text-xs text-fg-3">{m.fromAddr}</span>}
@@ -252,7 +253,7 @@ function ThreadMessage({ m, defaultOpen, isLast }: { m: MessageDetail; defaultOp
             transition={spring.gentle}
             className="overflow-hidden"
           >
-            <div className="px-5 pb-5">
+            <div className="px-6 pb-6">
               {m.html ? (
                 <>
                   <BlockedBanner
@@ -264,7 +265,7 @@ function ThreadMessage({ m, defaultOpen, isLast }: { m: MessageDetail; defaultOp
                     }}
                   />
                   {/* HTML メールは「紙」の上に表示する：送り手の意図どおりの白背景で */}
-                  <div className="overflow-hidden rounded-[10px] bg-white shadow-[0_0_0_1px_var(--paper-edge),0_8px_24px_-12px_rgba(0,0,0,0.5)]">
+                  <div className="overflow-hidden rounded-[12px] bg-white shadow-[0_0_0_1px_var(--paper-edge),0_2px_4px_rgba(0,0,0,0.2),0_30px_60px_-30px_rgba(0,0,0,0.85)]">
                     <HtmlFrame html={m.html} allowRemote={allowRemote} onBlocked={onBlocked} />
                   </div>
                 </>
@@ -400,7 +401,7 @@ function ReaderEmpty() {
   const accounts = useStore((s) => s.accounts);
   const setDialog = useStore((s) => s.setDialog);
   return (
-    <section className="flex min-w-0 flex-1 items-center justify-center bg-bg">
+    <section className="relative flex min-w-0 flex-1 items-center justify-center">
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={spring.gentle} className="max-w-[340px] text-center">
         <EnvelopeArt />
         {accounts.length === 0 ? (

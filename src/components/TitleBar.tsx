@@ -47,14 +47,14 @@ export function TitleBar() {
   return (
     <header
       data-tauri-drag-region
-      className="relative z-30 flex h-11 shrink-0 items-center gap-3 border-b border-line-subtle bg-bg pl-4"
+      className="glass relative z-30 flex h-[46px] shrink-0 items-center gap-3 border-b border-line-subtle pl-4"
       onDoubleClick={(e) => {
         if ((e.target as HTMLElement).hasAttribute("data-tauri-drag-region")) windowAction("maximize");
       }}
     >
       <div data-tauri-drag-region className="flex w-[218px] shrink-0 items-center gap-2.5">
         <Logo />
-        <span data-tauri-drag-region className="text-[13px] font-semibold tracking-[-0.02em] text-fg">
+        <span data-tauri-drag-region className="text-[14px] font-semibold tracking-[-0.03em] text-fg">
           Fumi
         </span>
       </div>
@@ -62,11 +62,13 @@ export function TitleBar() {
       {/* 検索 — EasyUI iOS-style Search Bar：フォーカスで幅が広がる */}
       <div data-tauri-drag-region className="flex flex-1 justify-center">
         <motion.label
-          animate={{ width: focused || value ? 560 : 380 }}
-          transition={spring.snappy}
+          animate={{ width: focused || value ? 580 : 400 }}
+          transition={spring.smooth}
           className={cn(
-            "relative flex h-[30px] max-w-full cursor-text items-center gap-2 rounded-full border px-3 transition-colors duration-200",
-            focused ? "border-line-hover bg-surface" : "border-line-subtle bg-surface-raised hover:border-line",
+            "relative flex h-[32px] max-w-full cursor-text items-center gap-2.5 rounded-full border px-3.5 transition-[background,border-color,box-shadow] duration-300",
+            focused
+              ? "border-line-hover bg-surface shadow-[0_0_0_4px_var(--pill),0_12px_32px_-12px_rgba(0,0,0,0.5)]"
+              : "border-line bg-pill hover:border-line-hover",
           )}
         >
           <Search className="size-3.5 shrink-0 text-fg-3" />
@@ -84,7 +86,7 @@ export function TitleBar() {
               }
               if (e.key === "Enter") setSearch(value);
             }}
-            placeholder="メールを検索"
+            placeholder="メール、差出人、本文を検索"
             className="h-full min-w-0 flex-1 bg-transparent text-[13px] text-fg placeholder:text-fg-3 focus:outline-none"
             spellCheck={false}
           />
@@ -117,6 +119,7 @@ export function TitleBar() {
       </div>
 
       <div className="flex items-center gap-0.5">
+        <SyncLabel busy={busy} />
         {errors.length > 0 && (
           <button
             onClick={() => setDialog("settings")}
@@ -157,6 +160,17 @@ export function TitleBar() {
   );
 }
 
+function SyncLabel({ busy }: { busy: boolean }) {
+  const accounts = useStore((s) => s.accounts.length);
+  if (!accounts) return null;
+  return (
+    <span className="mr-2 flex items-center gap-2 text-[11.5px] text-fg-3">
+      <span className={cn("size-1.5 rounded-full", busy ? "breathe bg-fg-2" : "bg-[#3fb27f] shadow-[0_0_8px_#3fb27f]")} />
+      {busy ? "同期しています" : "最新の状態"}
+    </span>
+  );
+}
+
 function WinButton({ children, label, onClick, danger }: { children: React.ReactNode; label: string; onClick: () => void; danger?: boolean }) {
   return (
     <button
@@ -175,7 +189,7 @@ function WinButton({ children, label, onClick, danger }: { children: React.React
 function Logo() {
   return (
     <svg data-tauri-drag-region viewBox="0 0 24 24" className="size-[18px]" aria-hidden>
-      <rect x="1" y="1" width="22" height="22" rx="6.5" fill="var(--surface-raised)" stroke="var(--border-hover)" />
+      <rect x="1" y="1" width="22" height="22" rx="6.5" fill="var(--surface)" stroke="var(--border-hover)" />
       <rect x="5" y="7.2" width="14" height="9.8" rx="2" fill="var(--text-primary)" />
       <path d="M5.8 8 L12 12.6 L18.2 8" fill="none" stroke="var(--bg)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       <circle cx="18.4" cy="6.6" r="2.2" fill="var(--indicator)" stroke="var(--surface-raised)" strokeWidth="1" />

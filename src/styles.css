@@ -1,73 +1,84 @@
 @import "tailwindcss";
 @import "@fontsource-variable/geist";
 @import "@fontsource-variable/jetbrains-mono";
+@import "@fontsource/zen-kaku-gothic-new/400.css";
+@import "@fontsource/zen-kaku-gothic-new/500.css";
+@import "@fontsource/zen-kaku-gothic-new/700.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ---------------------------------------------------------------------------
-   EasyUI のデザイントークン（easyui.site / tokens.css）をそのまま採用。
-   :root がライト、.dark がダーク。
+   デザイントークン
+   EasyUI のモノクローム階調・角丸・スプリングを土台に、
+   暗部を深くし、面の重なりを髪の毛ほどの光の線で見せる「シネマ」寄りの調整。
    --------------------------------------------------------------------------- */
 :root {
-  --bg: #fafafa;
+  --bg: #f6f6f7;
+  --bg-deep: #efeff1;
   --surface: #ffffff;
-  --surface-hover: #f4f4f5;
-  --surface-raised: #f1f1f2;
-  --border: #e4e4e7;
-  --border-hover: #d4d4d8;
-  --border-subtle: #ededef;
-  --text-primary: #0a0a0a;
-  --text-secondary: #52525b;
-  --text-muted: #71717a;
-  --text-subtle: #a1a1aa;
-  --accent: #0a0a0a;
+  --surface-hover: #f2f2f4;
+  --surface-raised: #fbfbfc;
+  --border: rgba(10, 10, 14, 0.09);
+  --border-hover: rgba(10, 10, 14, 0.16);
+  --border-subtle: rgba(10, 10, 14, 0.055);
+  --highlight: rgba(255, 255, 255, 0.9);
+  --text-primary: #0b0b0d;
+  --text-secondary: #4b4b52;
+  --text-muted: #77777e;
+  --text-subtle: #a8a8ae;
+  --accent: #0b0b0d;
   --accent-fg: #fafafa;
-  --accent-subtle: rgba(10, 10, 10, 0.05);
-  --accent-glow: rgba(10, 10, 10, 0.06);
-  --accent-ring: rgba(10, 10, 10, 0.15);
-  --indicator: #3b82f6;
-  --pill: rgba(10, 10, 10, 0.055);
-  --pill-active: rgba(10, 10, 10, 0.085);
+  --accent-glow: rgba(10, 10, 14, 0.08);
+  --indicator: #2f6fef;
+  --pill: rgba(10, 10, 14, 0.045);
+  --pill-active: rgba(10, 10, 14, 0.07);
+  --ambient: rgba(255, 255, 255, 0.9);
+  --grain-opacity: 0.025;
   --paper: #ffffff;
-  --paper-edge: rgba(15, 15, 20, 0.07);
-  --shadow-subtle: 0 1px 2px 0 rgba(15, 15, 20, 0.06), 0 0 0 1px rgba(15, 15, 20, 0.04);
-  --shadow-elevated: 0 10px 25px -8px rgba(15, 15, 20, 0.12), 0 0 0 1px rgba(15, 15, 20, 0.05);
-  --shadow-float: 0 24px 60px -12px rgba(15, 15, 20, 0.25), 0 0 0 1px rgba(15, 15, 20, 0.06);
-  --danger: #dc2626;
+  --paper-edge: rgba(10, 10, 14, 0.08);
+  --shadow-subtle: 0 1px 2px rgba(10, 10, 14, 0.05), 0 0 0 1px rgba(10, 10, 14, 0.05);
+  --shadow-card: 0 1px 1px rgba(10, 10, 14, 0.04), 0 8px 24px -12px rgba(10, 10, 14, 0.14), 0 0 0 1px rgba(10, 10, 14, 0.06);
+  --shadow-float: 0 30px 80px -20px rgba(10, 10, 14, 0.28), 0 12px 24px -12px rgba(10, 10, 14, 0.12), 0 0 0 1px rgba(10, 10, 14, 0.07);
+  --danger: #d4342c;
+  --star: #e8a33a;
   color-scheme: light;
 }
 
 .dark {
-  --bg: #111113;
-  --surface: #1c1c1f;
-  --surface-hover: #202023;
-  --surface-raised: #18181a;
-  --border: #29292c;
-  --border-hover: #343438;
-  --border-subtle: #1f1f22;
-  --text-primary: #f2f2f3;
-  --text-secondary: #a1a1a6;
-  --text-muted: #6f6f75;
-  --text-subtle: #4d4d52;
-  --accent: #f2f2f3;
-  --accent-fg: #111113;
-  --accent-subtle: rgba(242, 242, 243, 0.06);
-  --accent-glow: rgba(242, 242, 243, 0.08);
-  --accent-ring: rgba(242, 242, 243, 0.2);
-  --indicator: #3b82f6;
-  --pill: rgba(242, 242, 243, 0.045);
-  --pill-active: rgba(242, 242, 243, 0.08);
-  --paper: #ffffff;
-  --paper-edge: rgba(0, 0, 0, 0.4);
-  --shadow-subtle: 0 1px 2px 0 rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(242, 242, 243, 0.02);
-  --shadow-elevated: 0 10px 25px -8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(242, 242, 243, 0.04);
-  --shadow-float: 0 24px 60px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(242, 242, 243, 0.06);
-  --danger: #f87171;
+  --bg: #0a0a0b;
+  --bg-deep: #060607;
+  --surface: #141416;
+  --surface-hover: #1a1a1d;
+  --surface-raised: #101012;
+  --border: rgba(255, 255, 255, 0.075);
+  --border-hover: rgba(255, 255, 255, 0.14);
+  --border-subtle: rgba(255, 255, 255, 0.045);
+  --highlight: rgba(255, 255, 255, 0.06);
+  --text-primary: #f4f4f5;
+  --text-secondary: #a4a4ab;
+  --text-muted: #6c6c73;
+  --text-subtle: #45454b;
+  --accent: #f4f4f5;
+  --accent-fg: #0a0a0b;
+  --accent-glow: rgba(255, 255, 255, 0.12);
+  --indicator: #4c8dff;
+  --pill: rgba(255, 255, 255, 0.04);
+  --pill-active: rgba(255, 255, 255, 0.07);
+  --ambient: rgba(255, 255, 255, 0.055);
+  --grain-opacity: 0.045;
+  --paper: #f4f4f5;
+  --paper-edge: rgba(0, 0, 0, 0.6);
+  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.045), 0 1px 2px rgba(0, 0, 0, 0.5), 0 14px 32px -16px rgba(0, 0, 0, 0.8);
+  --shadow-float: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 40px 100px -24px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.07);
+  --danger: #ff6b61;
+  --star: #f0b35b;
   color-scheme: dark;
 }
 
 @theme inline {
   --color-bg: var(--bg);
+  --color-bg-deep: var(--bg-deep);
   --color-surface: var(--surface);
   --color-surface-hover: var(--surface-hover);
   --color-surface-raised: var(--surface-raised);
@@ -84,15 +95,18 @@
   --color-pill: var(--pill);
   --color-pill-active: var(--pill-active);
   --color-danger: var(--danger);
-  --font-sans: "Geist Variable", "Yu Gothic UI", "Hiragino Sans", "Noto Sans JP", "Meiryo UI", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono Variable", "Cascadia Mono", ui-monospace, monospace;
+  --color-star: var(--star);
+  /* 欧文は EasyUI の Geist、和文は Zen Kaku Gothic New。かなは Geist に無いので自動で和文側に回る */
+  --font-sans: "Geist Variable", "Zen Kaku Gothic New", "Yu Gothic UI", "Hiragino Sans", sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
   --radius-xl: 20px;
   --shadow-subtle: var(--shadow-subtle);
-  --shadow-elevated: var(--shadow-elevated);
+  --shadow-card: var(--shadow-card);
   --shadow-float: var(--shadow-float);
+  --ease-cinema: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 html,
@@ -107,12 +121,18 @@ body {
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: 14px;
-  letter-spacing: -0.011em;
+  letter-spacing: 0.01em;
   -webkit-font-smoothing: antialiased;
-  font-feature-settings: "palt" 1;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "palt" 1, "ss01" 1;
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
+}
+
+/* 英数字だけの見出しは詰める（和文は詰めすぎると読みにくい） */
+.tracking-display {
+  letter-spacing: -0.012em;
 }
 
 input,
@@ -123,13 +143,14 @@ textarea,
   -webkit-user-select: text;
 }
 
-/* 枠のない入力欄はリングを出さない（コンテナ側で状態を示す） */
+::selection {
+  background: color-mix(in srgb, var(--indicator) 35%, transparent);
+}
+
 input:focus-visible,
 textarea:focus-visible {
   outline: none;
 }
-
-/* EasyUI の focus-ring：キーボード操作時だけ表示 */
 :focus {
   outline: none;
 }
@@ -159,17 +180,45 @@ textarea:focus-visible {
 
 .tabular {
   font-variant-numeric: tabular-nums;
+  font-family: "Geist Variable", sans-serif;
 }
 
-/* 一覧の未読ドット：ゆっくり明滅（EasyUI pulse-subtle） */
-@keyframes pulse-subtle {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.6;
-  }
+/* ---------------------------------------------------------------------------
+   シネマ：光と粒子
+   --------------------------------------------------------------------------- */
+
+/* 画面上端から落ちる環境光（EasyUI Hero の ambient glow） */
+.ambient {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(70% 55% at 50% -12%, var(--ambient), transparent 70%),
+    radial-gradient(40% 40% at 100% 100%, color-mix(in srgb, var(--ambient) 40%, transparent), transparent 70%);
+}
+
+/* フィルムグレイン：均一な面に質感を与える */
+.grain {
+  pointer-events: none;
+  position: fixed;
+  inset: -50%;
+  z-index: 90;
+  opacity: var(--grain-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1.1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+
+/* ガラス面 */
+.glass {
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+}
+
+/* 上辺だけに乗る髪の毛ほどの光 */
+.hairline-top {
+  box-shadow: inset 0 1px 0 var(--highlight);
 }
 
 @keyframes shimmer {
@@ -184,15 +233,30 @@ textarea:focus-visible {
 .skeleton {
   position: relative;
   overflow: hidden;
-  background: var(--surface-raised);
+  background: var(--pill);
   border-radius: 6px;
 }
 .skeleton::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, var(--accent-glow), transparent);
-  animation: shimmer 1.6s ease-in-out infinite;
+  background: linear-gradient(90deg, transparent, var(--pill-active), transparent);
+  animation: shimmer 1.8s var(--ease-cinema) infinite;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.85);
+  }
+}
+.breathe {
+  animation: breathe 2.4s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -202,4 +266,9 @@ textarea:focus-visible {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* アイコンは少し細く：文字の線の太さに揃える */
+svg.lucide {
+  stroke-width: 1.7;
 }

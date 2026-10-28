@@ -65,7 +65,7 @@ export function Tooltip({
             exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.08 } }}
             transition={spring.snappy}
             className={cn(
-              "pointer-events-none absolute z-[80] flex items-center gap-2 whitespace-nowrap rounded-md border border-line bg-surface px-2 py-1 text-xs font-medium text-fg shadow-elevated",
+              "pointer-events-none absolute z-[80] flex items-center gap-2 whitespace-nowrap rounded-md border border-line bg-surface px-2 py-1 text-xs font-medium text-fg shadow-card",
               pos,
             )}
           >

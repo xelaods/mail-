@@ -1,7 +1,7 @@
 # Fumi
 
 Gmail と iCloud メールを、ひとつの受信トレイで速く・気持ちよく読むための Windows 用メールクライアントです。
-UI は [EasyUI](https://easyui.site) のデザインシステム（色・タイポグラフィ・角丸・スプリングアニメーション）で組んでいます。
+UI は [EasyUI](https://easyui.site) のデザインシステム（モノクロームの階調・角丸・スプリングアニメーション）を土台に、深い暗部と光の演出を加えています。書体は欧文が Geist、和文が Zen Kaku Gothic New です。
 
 ![ダークテーマ](docs/screenshot-dark.png)
 

@@ -38,7 +38,7 @@ function buildDocument(html: string, allowRemote: boolean): { doc: string; block
   style.textContent = `
     html { color-scheme: light; }
     body { margin: 0; padding: 28px 32px; font-family: "Geist Variable", "Yu Gothic UI", "Hiragino Sans", "Noto Sans JP", "Meiryo UI", system-ui, sans-serif;
-      font-size: 14px; line-height: 1.7; color: #1d1d1f; background: #ffffff; overflow-wrap: anywhere; word-break: normal; }
+      font-size: 14.5px; line-height: 1.8; color: #1d1d1f; background: #ffffff; overflow-wrap: anywhere; word-break: normal; }
     img { max-width: 100%; height: auto; }
     table { max-width: 100% !important; }
     a { color: #2563eb; }
@@ -105,7 +105,7 @@ export function TextBody({ text }: { text: string }) {
   const [showQuote, setShowQuote] = useState(false);
   const { main, quote } = useMemo(() => splitQuote(text.replace(/\r/g, "")), [text]);
   return (
-    <div className="selectable whitespace-pre-wrap break-words text-[14px] leading-[1.8] text-fg">
+    <div className="selectable whitespace-pre-wrap break-words text-[14.5px] leading-[1.95] text-fg/90">
       {linkify(main.trimEnd())}
       {quote && (
         <>
