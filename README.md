@@ -43,7 +43,7 @@ Fumi はアプリ用パスワードで IMAP / SMTP に直接接続します。�
 
 1. [Google Cloud コンソール](https://console.cloud.google.com/projectcreate)でプロジェクトを作成
 2. [Google Auth Platform](https://console.cloud.google.com/auth/overview) でアプリ名「Fumi」、対象「外部」で設定
-3. 「対象」で公開ステータスを「本番環境」に（テストのままだと 7 日ごとにサインインし直しになります）
+3. 「ブランディング」でホームページ `https://xelaods.github.io/mail-/`、プライバシーポリシー `https://xelaods.github.io/mail-/privacy.html`、承認済みドメイン `xelaods.github.io` を入力し、「対象」で公開ステータスを「本番環境」に（テストのままだと 7 日ごとにサインインし直しになります）
 4. [クライアント](https://console.cloud.google.com/auth/clients)で「デスクトップ アプリ」を作成し、クライアント ID とシークレットを Fumi に貼り付け
 5. 「Google でサインイン」を押し、ブラウザで大学のアカウントにサインインして許可
 

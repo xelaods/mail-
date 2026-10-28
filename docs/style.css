@@ -1,0 +1,15 @@
+:root { color-scheme: light dark; --fg:#1d1d1f; --fg2:#6e6e73; --bg:#fbfbfd; --line:#d2d2d7; --blue:#0066cc; }
+@media (prefers-color-scheme: dark) { :root { --fg:#f5f5f7; --fg2:#a1a1a6; --bg:#111113; --line:#333336; --blue:#2997ff; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.8 -apple-system, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif; }
+main { max-width: 720px; margin: 0 auto; padding: 72px 24px 96px; }
+h1 { font-size: 40px; line-height: 1.2; margin: 0 0 12px; }
+h2 { font-size: 22px; margin: 44px 0 8px; }
+p, li { color: var(--fg); }
+.lead { font-size: 19px; color: var(--fg2); margin: 0 0 32px; }
+.muted { color: var(--fg2); font-size: 14px; }
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+img { max-width: 100%; border-radius: 12px; border: 1px solid var(--line); margin: 24px 0; }
+nav { display: flex; gap: 20px; font-size: 14px; margin-bottom: 48px; }
+footer { border-top: 1px solid var(--line); margin-top: 64px; padding-top: 20px; font-size: 13px; color: var(--fg2); }

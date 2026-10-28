@@ -204,6 +204,25 @@ function AccountCard({ a }: { a: Account }) {
           </div>
         </div>
       </div>
+      {a.provider === "gmail" && (
+        <p className="mt-3 text-xs leading-relaxed text-fg-3">
+          Google のサインインが切れた時は
+          <button
+            className="mx-1 cursor-default font-medium text-blue hover:underline"
+            onClick={async () => {
+              try {
+                await api.reauthGoogle(a.id);
+                pushToast({ title: "サインインし直しました", tone: "success" });
+              } catch (e) {
+                pushToast({ title: "サインインできませんでした", description: String(e), tone: "error" });
+              }
+            }}
+          >
+            Google でサインインし直す
+          </button>
+          を押してください。
+        </p>
+      )}
       <div className="mt-4 flex items-center gap-2">
         <Button
           size="sm"

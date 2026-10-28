@@ -62,6 +62,12 @@ impl Engine {
         Ok(crate::oauth::GoogleClient { id: id.trim().to_string(), secret: secret.trim().to_string() })
     }
 
+    /// 再サインインの後などに、覚えているトークンと接続を捨てる
+    pub fn forget_credentials(&self, account_id: &str) {
+        self.tokens.lock().remove(account_id);
+        self.sessions.lock().remove(account_id);
+    }
+
     /// 接続に使う資格情報。Google でサインインしたアカウントは、必要ならトークンを更新する
     pub async fn credential(&self, account: &Account) -> Result<imap::Credential> {
         let secret = secrets::get_password(&account.id)?;

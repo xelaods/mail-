@@ -93,7 +93,7 @@ export function GoogleSignIn({ onBack, onDone }: { onBack: () => void; onDone: (
                     <LinkButton url="https://console.cloud.google.com/auth/overview">Google Auth Platform を開く</LinkButton>
                   </Step>
                   <Step n={3}>
-                    「対象」で公開ステータスを「本番環境」にします。テストのままだと、7日ごとにサインインし直しになります。
+                    「ブランディング」で、ホームページに <Code>https://xelaods.github.io/mail-/</Code>、プライバシーポリシーに <Code>https://xelaods.github.io/mail-/privacy.html</Code>、承認済みドメインに <Code>xelaods.github.io</Code> を入れて保存し、「対象」で公開ステータスを「本番環境」にします（テストのままでも使えますが、7日ごとにサインインし直しになります）。
                   </Step>
                   <Step n={4}>
                     「クライアント」→「クライアントを作成」で種類を「デスクトップ アプリ」にし、表示されたクライアント ID とシークレットを下に貼り付けます。
@@ -163,6 +163,10 @@ function Step({ n, children }: { n: number; children: React.ReactNode }) {
       <span>{children}</span>
     </li>
   );
+}
+
+function Code({ children }: { children: React.ReactNode }) {
+  return <code className="selectable rounded bg-pill-active px-1 py-0.5 font-mono text-[11.5px] text-fg">{children}</code>;
 }
 
 function LinkButton({ url, children }: { url: string; children: React.ReactNode }) {

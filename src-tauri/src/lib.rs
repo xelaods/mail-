@@ -86,6 +86,28 @@ async fn add_google_account(state: State<'_, AppState>, name: String, hint: Opti
     register(&engine, Provider::Gmail, signed.email, &name, &secret).await
 }
 
+/// Google のサインインが切れた時（テスト中の設定では7日ごと）にサインインし直す
+#[tauri::command]
+async fn reauth_google_account(state: State<'_, AppState>, id: String) -> Res<()> {
+    let engine = state.engine.clone();
+    let account = engine.db.account(&id).map_err(err)?;
+    let client = engine.google_client().map_err(err)?;
+    let signed = oauth::sign_in(&client, Some(&account.email), |url| {
+        tauri_plugin_opener::open_url(url, None::<&str>).map_err(|e| anyhow::anyhow!("ブラウザを開けませんでした: {e}"))
+    })
+    .await
+    .map_err(err)?;
+    if signed.email != account.email {
+        return Err(format!("{} でサインインしてください（{} でサインインされました）", account.email, signed.email));
+    }
+    let secret = format!("{}{}", oauth::REFRESH_PREFIX, signed.refresh_token);
+    secrets::set_password(&account.id, &secret).map_err(err)?;
+    engine.forget_credentials(&account.id);
+    engine.stop_watch(&account.id);
+    engine.start_watch(account);
+    Ok(())
+}
+
 #[tauri::command]
 async fn update_account(state: State<'_, AppState>, id: String, name: String, signature: String, color: i64) -> Res<()> {
     state.engine.db.update_account(&id, &name, &signature, color).map_err(err)
@@ -245,6 +267,7 @@ pub fn run() {
             list_accounts,
             add_account,
             add_google_account,
+            reauth_google_account,
             update_account,
             remove_account,
             list_mailboxes,

@@ -24,6 +24,7 @@ export const api = {
   addAccount: (input: { provider: Provider; email: string; name: string; password: string }) =>
     call<Account>("add_account", { input }),
   addGoogleAccount: (name: string, hint?: string) => call<Account>("add_google_account", { name, hint: hint || null }),
+  reauthGoogle: (id: string) => call<void>("reauth_google_account", { id }),
   updateAccount: (id: string, name: string, signature: string, color: number) =>
     call<void>("update_account", { id, name, signature, color }),
   removeAccount: (id: string) => call<void>("remove_account", { id }),
