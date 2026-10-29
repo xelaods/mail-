@@ -16,6 +16,7 @@ import {
   Tag,
   Trash2,
   Layers,
+  KeyRound,
 } from "lucide-react";
 import { useStore } from "../lib/store";
 import type { Account, MailboxInfo, Role, View } from "../lib/types";
@@ -136,6 +137,7 @@ export function Sidebar() {
         <div className="space-y-px">
           {item("u:inbox:", { kind: "unified", role: "inbox" }, "すべての受信", <Inbox />, inboxUnread)}
           {item("u:unread:", { kind: "unified", role: "unread" }, "未読", <Mail />)}
+          {item("u:codes:", { kind: "unified", role: "codes" }, "コード", <KeyRound />)}
           {item("u:flagged:", { kind: "unified", role: "flagged" }, "スター付き", <Star />)}
           {item("u:attachments:", { kind: "unified", role: "attachments" }, "添付ファイルあり", <Paperclip />)}
           {item("u:sent:", { kind: "unified", role: "sent" }, "送信済み", <Send />)}

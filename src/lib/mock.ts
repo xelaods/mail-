@@ -54,6 +54,22 @@ const newsletter = (title: string, lead: string) => `
 
 const seeds: Seed[] = [
   {
+    acc: "g", box: "INBOX", from: ["オンラインバンク", "no-reply@bank.example"], subject: "【オンラインバンク】ワンタイムパスワードのお知らせ",
+    ago: 0.03 * h,
+    text: "ログインのためのワンタイムパスワードをお知らせします。\n\nワンタイムパスワード：482913\n\n有効期限は発行から10分です。このパスワードを他人に教えないでください。",
+  },
+  {
+    acc: "i", box: "INBOX", from: ["チケット予約サービス", "account@tickets.example"], subject: "メールアドレスの確認をお願いします",
+    ago: 1.2 * h, seen: true,
+    text: "ご登録ありがとうございます。以下のボタンからメールアドレスを確認してください。",
+    html: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#222"><h2>メールアドレスの確認</h2><p>ご登録ありがとうございます。下のボタンを押して、メールアドレスの確認を完了してください。</p><p><a href="https://tickets.example/verify?token=8f2a1c" style="display:inline-block;background:#0a7cff;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none">メールアドレスを確認する</a></p><p style="font-size:12px;color:#888">このリンクの有効期限は24時間です。<a href="https://tickets.example/help">ヘルプ</a></p></div>`,
+  },
+  {
+    acc: "g", box: "INBOX", from: ["Example Store", "security@store.example"], subject: "Your verification code",
+    ago: 26 * h, seen: true,
+    text: "Use the code below to sign in to your account.\n\nYour verification code is: 917204\n\nIf you didn't request this, you can ignore this email.",
+  },
+  {
     acc: "g", box: "INBOX", from: ["佐藤 美咲", "misaki.sato@example.ac.jp"], subject: "来週のゼミ発表の順番について",
     ago: 5 * h, thread: "seminar", seen: true,
     text: "みなさん\n\nお疲れさまです、佐藤です。\n来週月曜のゼミですが、発表順を以下のようにしたいと思っています。\n\n1. 田中さん（生成AIの利用実態）\n2. 鈴木さん（アンケート集計の途中経過）\n3. 佐藤（先行研究のまとめ）\n\n各15分＋質疑5分の予定です。スライドは前日の21時までに共有フォルダへお願いします。\n都合が悪ければ今週中に教えてください。\n\n佐藤",
@@ -152,6 +168,14 @@ const seeds: Seed[] = [
 ];
 
 let nextId = 1;
+/** Rust 側（codes.rs）の検出をデモ用に簡略化したもの */
+function detectOtp(subject: string, text: string, html: string): { otpCode: string; otpLink: string } {
+  const all = `${subject}\n${text}`;
+  const m = all.match(/(?:ワンタイムパスワード|認証コード|確認コード|verification code is|code is)[^0-9A-Z]{0,20}([0-9]{4,8})/i);
+  const link = /確認|verify|認証/i.test(all) ? (html.match(/href="(https:[^"]*verify[^"]*)"/)?.[1] ?? "") : "";
+  return { otpCode: m?.[1] ?? "", otpLink: link };
+}
+
 const store: (MessageDetail & { box: string })[] = seeds.map((s) => {
   const id = nextId++;
   return {
@@ -182,6 +206,7 @@ const store: (MessageDetail & { box: string })[] = seeds.map((s) => {
     references: "",
     listUnsubscribe: s.html ? "<https://example.com/unsub>" : "",
     mailboxRole: mailboxes.find((m) => m.accountId === s.acc && m.path === s.box)?.role ?? "custom",
+    ...detectOtp(s.subject, s.text, s.html ?? ""),
   };
 });
 
@@ -214,6 +239,8 @@ function list(q: ViewQuery) {
         return m.flagged && role !== "trash" && role !== "junk";
       case "unread":
         return !m.seen && role === "inbox";
+      case "codes":
+        return (m.otpCode || m.otpLink) && role !== "trash" && role !== "junk";
       case "attachments":
         return m.hasAttach && role !== "trash";
       default:
@@ -246,6 +273,16 @@ function list(q: ViewQuery) {
 }
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+if (typeof location !== "undefined" && new URLSearchParams(location.search).has("otp")) {
+  setTimeout(() => {
+    window.dispatchEvent(
+      new CustomEvent("mock:otp-received", {
+        detail: { id: 1, accountId: "g", from: "オンラインバンク", subject: "ワンタイムパスワードのお知らせ", code: "482913", link: "", copied: true },
+      }),
+    );
+  }, 1200);
+}
 
 export async function mockBackend(cmd: string, args: Record<string, unknown>): Promise<unknown> {
   await wait(cmd === "get_thread" ? 120 : 40);

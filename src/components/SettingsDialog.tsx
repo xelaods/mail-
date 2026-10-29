@@ -113,6 +113,9 @@ function General() {
       <SettingRow title="開いたメールを既読にする">
         <Switch label="開いたメールを既読にする" checked={settings.markReadOnOpen} onChange={(v) => update({ markReadOnOpen: v })} />
       </SettingRow>
+      <SettingRow title="届いた確認コードを自動でコピー" desc="認証コードのメールが届いたら、コードをクリップボードに入れて通知します">
+        <Switch label="届いた確認コードを自動でコピー" checked={settings.autoCopyCodes} onChange={(v) => update({ autoCopyCodes: v })} />
+      </SettingRow>
       <SettingRow title="新着メールを通知" desc="Windows の通知センターに表示します">
         <Switch label="新着メールを通知" checked={settings.notifications} onChange={(v) => update({ notifications: v })} />
       </SettingRow>

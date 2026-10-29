@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   Folder,
   Inbox,
+  KeyRound,
   Keyboard,
   Mail,
   Moon,
@@ -70,6 +71,7 @@ export function CommandPalette() {
       { id: "keys", group: "操作", label: "キーボードショートカット", icon: <Keyboard />, shortcut: "?", keywords: "shortcut keys", run: () => s.setDialog("shortcuts") },
       { id: "v-inbox", group: "移動", label: "すべての受信", icon: <Inbox />, shortcut: "G I", keywords: "inbox", run: () => s.setView({ kind: "unified", role: "inbox" }) },
       { id: "v-unread", group: "移動", label: "未読", icon: <Mail />, keywords: "unread", run: () => s.setView({ kind: "unified", role: "unread" }) },
+      { id: "v-codes", group: "移動", label: "コード", icon: <KeyRound />, shortcut: "G C", keywords: "otp code 認証 確認 コード", run: () => s.setView({ kind: "unified", role: "codes" }) },
       { id: "v-star", group: "移動", label: "スター付き", icon: <Star />, shortcut: "G S", keywords: "starred flagged", run: () => s.setView({ kind: "unified", role: "flagged" }) },
       { id: "v-att", group: "移動", label: "添付ファイルあり", icon: <Paperclip />, keywords: "attachment", run: () => s.setView({ kind: "unified", role: "attachments" }) },
       { id: "v-sent", group: "移動", label: "送信済み", icon: <Send />, shortcut: "G T", keywords: "sent", run: () => s.setView({ kind: "unified", role: "sent" }) },

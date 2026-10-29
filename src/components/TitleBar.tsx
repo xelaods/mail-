@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Minus, PanelLeft, RefreshCw, Search, Settings2, Square, X } from "lucide-react";
 import { useNarrow } from "../hooks/useNarrow";
+import { LatestCodePill } from "./Codes";
 import { useStore } from "../lib/store";
 import { useShallow } from "zustand/react/shallow";
 import { windowAction } from "../lib/api";
@@ -123,6 +124,7 @@ export function TitleBar() {
       </div>
 
       <div className="flex items-center gap-0.5">
+        <LatestCodePill />
         {errors.length > 0 && (
           <button
             onClick={() => setDialog("settings")}

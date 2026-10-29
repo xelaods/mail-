@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS trusted_senders (addr TEXT PRIMARY KEY);
 "#;
 
-const SUMMARY_COLS: &str = "id, account_id, mailbox, uid, subject, from_name, from_addr, to_json, date, snippet, seen, flagged, answered, has_attach, thread_key";
+const SUMMARY_COLS: &str = "id, account_id, mailbox, uid, subject, from_name, from_addr, to_json, date, snippet, seen, flagged, answered, has_attach, thread_key, otp_code, otp_link";
 
 fn to_preview(to_json: &str) -> String {
     let list: Vec<AddressInfo> = serde_json::from_str(to_json).unwrap_or_default();
@@ -118,6 +118,8 @@ fn summary_from_row(row: &Row<'_>, thread_count: i64) -> rusqlite::Result<Messag
         has_attach: row.get::<_, i64>(13)? != 0,
         thread_key: row.get(14)?,
         thread_count,
+        otp_code: row.get(15)?,
+        otp_link: row.get(16)?,
     })
 }
 
@@ -130,6 +132,7 @@ impl Db {
     pub fn open(path: &Path) -> Result<Self> {
         let conn = Connection::open(path).with_context(|| format!("DBを開けません: {}", path.display()))?;
         conn.execute_batch(SCHEMA)?;
+        Self::migrate(&conn)?;
         Ok(Self { conn: Mutex::new(conn) })
     }
 
@@ -137,7 +140,35 @@ impl Db {
     pub fn memory() -> Result<Self> {
         let conn = Connection::open_in_memory()?;
         conn.execute_batch(SCHEMA)?;
+        Self::migrate(&conn)?;
         Ok(Self { conn: Mutex::new(conn) })
+    }
+
+    /// 古いデータベースに列を足し、既存のメールからもコードを拾い直す
+    fn migrate(conn: &Connection) -> Result<()> {
+        let has_otp: bool = conn
+            .prepare("SELECT 1 FROM pragma_table_info('messages') WHERE name='otp_code'")?
+            .exists([])?;
+        if !has_otp {
+            conn.execute_batch(
+                "ALTER TABLE messages ADD COLUMN otp_code TEXT NOT NULL DEFAULT '';
+                 ALTER TABLE messages ADD COLUMN otp_link TEXT NOT NULL DEFAULT '';",
+            )?;
+            // 直近30日分だけ検出し直す（全件は時間がかかるため）
+            let since = chrono::Utc::now().timestamp() - 30 * 86400;
+            let rows: Vec<(i64, String, String, String)> = conn
+                .prepare("SELECT id, subject, text_body, html_body FROM messages WHERE date >= ?1 AND has_body = 1")?
+                .query_map(params![since], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?
+                .collect::<rusqlite::Result<_>>()?;
+            for (id, subject, text, html) in rows {
+                let f = crate::codes::detect(&subject, &text, &html);
+                if !f.code.is_empty() || !f.link.is_empty() {
+                    conn.execute("UPDATE messages SET otp_code=?2, otp_link=?3 WHERE id=?1", params![id, f.code, f.link])?;
+                }
+            }
+        }
+        conn.execute_batch("CREATE INDEX IF NOT EXISTS idx_messages_otp ON messages(date DESC) WHERE otp_code <> '' OR otp_link <> '';")?;
+        Ok(())
     }
 
     // ---------- アカウント ----------
@@ -358,13 +389,14 @@ impl Db {
         p: &ParsedMail,
     ) -> Result<i64> {
         let thread_key = mime::thread_key(p);
+        let found = crate::codes::detect(&p.subject, &p.text, &p.html);
         let mut conn = self.conn.lock();
         let tx = conn.transaction()?;
         tx.execute(
             "INSERT INTO messages (account_id, mailbox, uid, message_id, thread_key, subject, from_name, from_addr,
                to_json, cc_json, reply_to_json, date, snippet, seen, flagged, answered, draft, has_attach, size,
-               has_body, text_body, html_body, attachments_json, in_reply_to, refs, list_unsubscribe)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26)
+               has_body, text_body, html_body, attachments_json, in_reply_to, refs, list_unsubscribe, otp_code, otp_link)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28)
              ON CONFLICT(account_id, mailbox, uid) DO NOTHING",
             params![
                 account_id,
@@ -393,6 +425,8 @@ impl Db {
                 p.in_reply_to,
                 p.references,
                 p.list_unsubscribe,
+                found.code,
+                found.link,
             ],
         )?;
         let id = tx.last_insert_rowid();
@@ -425,18 +459,21 @@ impl Db {
     }
 
     pub fn update_body(&self, id: i64, p: &ParsedMail) -> Result<()> {
+        let found = crate::codes::detect(&p.subject, &p.text, &p.html);
         let mut conn = self.conn.lock();
         let tx = conn.transaction()?;
         tx.execute(
             "UPDATE messages SET has_body=1, text_body=?2, html_body=?3, attachments_json=?4, snippet=?5,
-               has_attach=?6 WHERE id=?1",
+               has_attach=?6, otp_code=?7, otp_link=?8 WHERE id=?1",
             params![
                 id,
                 p.text,
                 p.html,
                 serde_json::to_string(&p.attachments)?,
                 p.snippet,
-                p.attachments.iter().any(|a| !a.inline) as i64
+                p.attachments.iter().any(|a| !a.inline) as i64,
+                found.code,
+                found.link,
             ],
         )?;
         Self::index_fts(&tx, id, p)?;
@@ -537,8 +574,6 @@ impl Db {
                 let summary = summary_from_row(r, 1)?;
                 Ok((
                     summary,
-                    r.get::<_, String>(15)?,
-                    r.get::<_, String>(16)?,
                     r.get::<_, String>(17)?,
                     r.get::<_, String>(18)?,
                     r.get::<_, String>(19)?,
@@ -547,6 +582,8 @@ impl Db {
                     r.get::<_, String>(22)?,
                     r.get::<_, String>(23)?,
                     r.get::<_, String>(24)?,
+                    r.get::<_, String>(25)?,
+                    r.get::<_, String>(26)?,
                 ))
             },
         )?;
@@ -640,6 +677,10 @@ impl Db {
                     where_.push("m.seen = 0".into());
                     where_.push(format!("{role_of} = 'inbox'"));
                 }
+                "codes" => {
+                    where_.push("(m.otp_code <> '' OR m.otp_link <> '')".into());
+                    where_.push(format!("COALESCE({role_of},'custom') NOT IN ('trash','junk')"));
+                }
                 "attachments" => {
                     where_.push("m.has_attach = 1".into());
                     where_.push(format!("COALESCE({role_of},'custom') NOT IN ('trash','junk')"));
@@ -692,14 +733,14 @@ impl Db {
                FROM v WHERE dup = 1
              )
              SELECT id, account_id, mailbox, uid, subject, from_name, from_addr, to_json, date, snippet,
-                    all_seen, any_flag, answered, any_att, thread_key, cnt
+                    all_seen, any_flag, answered, any_att, thread_key, otp_code, otp_link, cnt
              FROM t WHERE rn = 1 ORDER BY date DESC LIMIT {limit} OFFSET {offset}"
         );
 
         let conn = self.conn.lock();
         let mut st = conn.prepare(&sql)?;
         let rows = st.query_map(rusqlite::params_from_iter(args.iter()), |r| {
-            let cnt: i64 = r.get(15)?;
+            let cnt: i64 = r.get(17)?;
             summary_from_row(r, cnt)
         })?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)

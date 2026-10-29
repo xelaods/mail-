@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { api, isTauri, onEvent } from "./api";
 import type {
+  OtpEvent,
   Account,
   MailboxInfo,
   MessageDetail,
@@ -51,6 +52,8 @@ export interface Settings {
   density: Density;
   undoSeconds: number;
   markReadOnOpen: boolean;
+  /** 届いた認証コードを自動でクリップボードにコピーする */
+  autoCopyCodes: boolean;
   notifications: boolean;
   previewLines: 1 | 2;
 }
@@ -60,6 +63,7 @@ const defaultSettings: Settings = {
   density: "comfortable",
   undoSeconds: 5,
   markReadOnOpen: true,
+  autoCopyCodes: true,
   notifications: true,
   previewLines: 2,
 };
@@ -90,6 +94,9 @@ interface State {
   dialog: null | "addAccount" | "settings" | "palette" | "shortcuts";
   /** 狭いウィンドウでサイドバーを重ねて表示しているか */
   sidebarOpen: boolean;
+  /** 直近に届いた認証コード（タイトルバーに10分間表示する） */
+  latestOtp: OtpEvent | null;
+  dismissOtp: () => void;
   /** 初めて起動した時だけ true（ようこそ画面を出す） */
   firstRun: boolean;
   finishWelcome: () => void;
@@ -162,6 +169,8 @@ export const useStore = create<State>((set, get) => ({
   settings: defaultSettings,
   dialog: null,
   sidebarOpen: false,
+  latestOtp: null,
+  dismissOtp: () => set({ latestOtp: null }),
   firstRun: false,
   finishWelcome: () => {
     set({ firstRun: false });
@@ -200,6 +209,16 @@ export const useStore = create<State>((set, get) => ({
       }, 150);
     });
     onEvent<SyncStatus>("sync-status", (s) => set({ sync: { ...get().sync, [s.accountId]: s } }));
+    onEvent<Omit<OtpEvent, "at">>("otp-received", (e) => {
+      const ev: OtpEvent = { ...e, at: Date.now() };
+      set({ latestOtp: ev });
+      get().pushToast({
+        title: e.code ? (e.copied ? `認証コード ${e.code} をコピーしました` : `認証コード ${e.code}`) : "認証リンクが届きました",
+        description: e.from,
+        tone: "success",
+        duration: 6000,
+      });
+    });
   },
 
   reloadMeta: async () => {
@@ -538,6 +557,7 @@ export const useStore = create<State>((set, get) => ({
     set({ settings });
     applyTheme(settings.theme);
     api.setSetting("ui", JSON.stringify(settings)).catch(() => undefined);
+    if (patch.autoCopyCodes !== undefined) api.setSetting("auto_copy_codes", patch.autoCopyCodes ? "on" : "off").catch(() => undefined);
     if (patch.notifications !== undefined) api.setSetting("notifications", patch.notifications ? "on" : "off").catch(() => undefined);
   },
 

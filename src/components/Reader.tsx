@@ -26,6 +26,7 @@ import { accountColor, displayName, fileSize, formatAddress, fullDate, listDate,
 import { spring } from "../lib/motion";
 import { Avatar, Button, IconButton, Spinner, cn } from "./ui";
 import { BlockedBanner, HtmlFrame, TextBody } from "./EmailBody";
+import { CodeBanner } from "./Codes";
 
 export function Reader() {
   const thread = useStore((s) => s.thread);
@@ -311,6 +312,7 @@ function ThreadMessage({ m, first, defaultOpen, isLast }: { m: MessageDetail; fi
       </header>
 
       <div className="mt-6">
+        <CodeBanner code={m.otpCode} link={m.otpLink} />
         {m.html ? (
           <>
             <BlockedBanner

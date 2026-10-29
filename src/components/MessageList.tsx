@@ -19,6 +19,7 @@ import type { Account, MessageSummary, View } from "../lib/types";
 import { accountColor, displayName, listDate } from "../lib/format";
 import { spring } from "../lib/motion";
 import { Avatar, IconButton, RollingNumber, Spinner, Tooltip, cn } from "./ui";
+import { CodeButton, CodesList } from "./Codes";
 
 function viewTitle(view: View, accounts: Account[], mailboxName?: string): string {
   if (view.kind === "mailbox") {
@@ -28,6 +29,7 @@ function viewTitle(view: View, accounts: Account[], mailboxName?: string): strin
   return {
     inbox: "受信",
     unread: "未読",
+    codes: "コード",
     flagged: "スター付き",
     attachments: "添付ファイル",
     sent: "送信済み",
@@ -117,6 +119,8 @@ export function MessageList() {
             {subtitle && <span className="truncate">{subtitle}　</span>}
             {loading ? (
               "読み込み中"
+            ) : view.kind === "unified" && view.role === "codes" && !search ? (
+              <>確認コード・認証リンク {items.length} 件</>
             ) : unread > 0 ? (
               <>
                 未読 <RollingNumber value={unread} /> 件
@@ -150,7 +154,9 @@ export function MessageList() {
         role="listbox"
         aria-label={title}
       >
-        {loading && items.length === 0 ? (
+        {view.kind === "unified" && view.role === "codes" && !search ? (
+          loading && items.length === 0 ? <ListSkeleton rowHeight={rowHeight} /> : <CodesList items={items} />
+        ) : loading && items.length === 0 ? (
           <ListSkeleton rowHeight={rowHeight} />
         ) : items.length === 0 ? (
           <EmptyList searching={!!search} view={view} filtered={unreadOnly} />
@@ -351,6 +357,11 @@ const Row = memo(function Row({
             </div>
             <div className="mt-[2px] flex items-center gap-1.5">
               <span className={cn("row-fg min-w-0 flex-1 truncate text-[13px]", unread && "font-medium")}>{m.subject || "(件名なし)"}</span>
+              {m.otpCode && Date.now() / 1000 - m.date < 86400 && (
+                <span className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <CodeButton code={m.otpCode} size="sm" />
+                </span>
+              )}
               {m.hasAttach && <Paperclip className="row-fg3 size-3.5 shrink-0" />}
               {m.flagged && <Star className="size-3.5 shrink-0 fill-star text-star" />}
             </div>

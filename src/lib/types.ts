@@ -60,6 +60,10 @@ export interface MessageSummary {
   hasAttach: boolean;
   threadKey: string;
   threadCount: number;
+  /** 確認コード・認証コード（なければ空） */
+  otpCode: string;
+  /** 認証リンク（なければ空） */
+  otpLink: string;
 }
 
 export interface MessageDetail extends MessageSummary {
@@ -76,7 +80,7 @@ export interface MessageDetail extends MessageSummary {
 }
 
 export type View =
-  | { kind: "unified"; role: "inbox" | "flagged" | "unread" | "attachments" | "sent" | "archive" | "trash" | "junk" | "drafts"; accountId?: string }
+  | { kind: "unified"; role: "inbox" | "flagged" | "unread" | "codes" | "attachments" | "sent" | "archive" | "trash" | "junk" | "drafts"; accountId?: string }
   | { kind: "mailbox"; accountId: string; path: string };
 
 export interface ViewQuery {
@@ -107,4 +111,16 @@ export interface SyncStatus {
   accountId: string;
   state: "syncing" | "idle" | "error";
   message?: string;
+}
+
+/** 認証コードが届いた時のイベント */
+export interface OtpEvent {
+  id: number;
+  accountId: string;
+  from: string;
+  subject: string;
+  code: string;
+  link: string;
+  copied: boolean;
+  at: number;
 }

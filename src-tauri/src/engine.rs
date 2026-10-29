@@ -39,8 +39,24 @@ pub struct Engine {
 }
 
 pub struct NewMail {
+    pub id: i64,
     pub from: String,
     pub subject: String,
+    pub code: String,
+    pub link: String,
+}
+
+/// 画面に知らせる「コードが届いた」イベント
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OtpEvent {
+    pub id: i64,
+    pub account_id: String,
+    pub from: String,
+    pub subject: String,
+    pub code: String,
+    pub link: String,
+    pub copied: bool,
 }
 
 impl Engine {
@@ -286,11 +302,15 @@ impl Engine {
             for m in chunk {
                 let Some((raw, has_body)) = raws.remove(&m.uid) else { continue };
                 let parsed = mime::parse(&raw, has_body);
-                db.insert_message(&account_id, path, m.uid, &m.flags, m.size, &parsed)?;
+                let id = db.insert_message(&account_id, path, m.uid, &m.flags, m.size, &parsed)?;
                 if !first_sync && !m.flags.seen {
+                    let found = crate::codes::detect(&parsed.subject, &parsed.text, &parsed.html);
                     new_mail.push(NewMail {
+                        id,
                         from: if parsed.from_name.is_empty() { parsed.from_addr.clone() } else { parsed.from_name.clone() },
                         subject: parsed.subject.clone(),
+                        code: found.code,
+                        link: found.link,
                     });
                 }
             }
@@ -409,6 +429,13 @@ impl Engine {
         if fresh.is_empty() {
             return;
         }
+        // 新着（同期中に初めて取り込んだ未読）の中にコードがあれば、クリップボードへ
+        if let Some(m) = fresh.iter().find(|m| !m.code.is_empty() || !m.link.is_empty()) {
+            self.handle_code(account, m);
+            if fresh.len() == 1 {
+                return;
+            }
+        }
         if self.db.setting("notifications").ok().flatten().as_deref() == Some("off") {
             return;
         }
@@ -427,6 +454,40 @@ impl Engine {
             .title(title)
             .body(format!("{body}\n{}", account.email))
             .show();
+    }
+
+    /// 認証コードが届いた時：クリップボードにコピーし、通知と画面に知らせる
+    fn handle_code(&self, account: &Account, m: &NewMail) {
+        use tauri_plugin_clipboard_manager::ClipboardExt;
+        let auto_copy = self.db.setting("auto_copy_codes").ok().flatten().as_deref() != Some("off");
+        let mut copied = false;
+        if auto_copy && !m.code.is_empty() {
+            copied = self.app.clipboard().write_text(m.code.clone()).is_ok();
+        }
+        let _ = self.app.emit(
+            "otp-received",
+            OtpEvent {
+                id: m.id,
+                account_id: account.id.clone(),
+                from: m.from.clone(),
+                subject: m.subject.clone(),
+                code: m.code.clone(),
+                link: m.link.clone(),
+                copied,
+            },
+        );
+        if self.db.setting("notifications").ok().flatten().as_deref() == Some("off") {
+            return;
+        }
+        let (title, body) = if !m.code.is_empty() {
+            (
+                format!("認証コード {}", m.code),
+                if copied { format!("コピーしました　{}", m.from) } else { m.from.clone() },
+            )
+        } else {
+            ("認証リンクが届きました".to_string(), format!("{}：{}", m.from, m.subject))
+        };
+        let _ = self.app.notification().builder().title(title).body(body).show();
     }
 
     // ------------------------------------------------------------------

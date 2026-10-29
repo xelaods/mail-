@@ -104,6 +104,10 @@ pub struct MessageSummary {
     pub has_attach: bool,
     pub thread_key: String,
     pub thread_count: i64,
+    /// 本文から見つけた確認コード・認証コード（なければ空）
+    pub otp_code: String,
+    /// 本文から見つけた認証リンク（なければ空）
+    pub otp_link: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -12,6 +12,7 @@
     "core:window:allow-is-maximized",
     "notification:default",
     "dialog:default",
-    "opener:default"
+    "opener:default",
+    "clipboard-manager:allow-write-text"
   ]
 }
