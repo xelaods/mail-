@@ -123,8 +123,18 @@ function General() {
 function Accounts() {
   const accounts = useStore((s) => s.accounts);
   const setDialog = useStore((s) => s.setDialog);
+  const [builtin, setBuiltin] = useState<boolean | null>(null);
+  useEffect(() => {
+    api.googleBuiltin().then(setBuiltin).catch(() => setBuiltin(false));
+  }, []);
   return (
     <div className="space-y-3">
+      {builtin !== null && (
+        <p className="flex items-center gap-2 text-xs text-fg-3">
+          <span className={cn("size-1.5 rounded-full", builtin ? "bg-green" : "bg-fg-4")} />
+          Google でサインイン：{builtin ? "このアプリに組み込み済み" : "組み込まれていません（ビルド時に Secrets が未設定）"}
+        </p>
+      )}
       {accounts.map((a) => (
         <AccountCard key={a.id} a={a} />
       ))}

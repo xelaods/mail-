@@ -47,6 +47,22 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
+      - name: Check Google sign-in client
+        shell: bash
+        env:
+          FUMI_GOOGLE_CLIENT_ID: ${{ secrets.FUMI_GOOGLE_CLIENT_ID }}
+          FUMI_GOOGLE_CLIENT_SECRET: ${{ secrets.FUMI_GOOGLE_CLIENT_SECRET }}
+        run: |
+          # 値そのものは出さず、入っているかどうかだけを表示する
+          if [ -n "$FUMI_GOOGLE_CLIENT_ID" ] && [ -n "$FUMI_GOOGLE_CLIENT_SECRET" ]; then
+            case "$FUMI_GOOGLE_CLIENT_ID" in
+              *.apps.googleusercontent.com) echo "::notice title=Google sign-in::組み込みます（クライアント ID・シークレットとも設定済み）" ;;
+              *) echo "::warning title=Google sign-in::クライアント ID の形式が違います（.apps.googleusercontent.com で終わるはず）" ;;
+            esac
+          else
+            [ -z "$FUMI_GOOGLE_CLIENT_ID" ] && echo "::warning title=Google sign-in::FUMI_GOOGLE_CLIENT_ID が未設定です"
+            [ -z "$FUMI_GOOGLE_CLIENT_SECRET" ] && echo "::warning title=Google sign-in::FUMI_GOOGLE_CLIENT_SECRET が未設定です"
+          fi
       - name: Build installer
         uses: tauri-apps/tauri-action@v0
         env:
