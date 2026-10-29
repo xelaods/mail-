@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, Copy, ExternalLink, KeyRound, Link2 } from "lucide-react";
 import { useStore } from "../lib/store";
@@ -38,16 +38,38 @@ function useNow(intervalMs = 30_000) {
 }
 
 /** コードを表示し、押すとコピーするボタン */
-export function CodeButton({ code, size = "md", onCopied, display }: { code: string; size?: "sm" | "md" | "lg"; onCopied?: () => void; display?: string }) {
+export function CodeButton({
+  code,
+  size = "md",
+  onCopied,
+  display,
+  flash,
+}: {
+  code: string;
+  size?: "sm" | "md" | "lg";
+  onCopied?: () => void;
+  display?: string;
+  /** true になった時、コピー済みの合図を一度だけ見せる（自動コピーの時） */
+  flash?: boolean;
+}) {
   const [copied, setCopied] = useState(false);
+  const timer = useRef<number>(undefined);
+  const showCopied = () => {
+    setCopied(true);
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setCopied(false), 1300);
+  };
+  useEffect(() => {
+    if (flash) showCopied();
+  }, [flash]);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
   return (
     <button
       onClick={async (e) => {
         e.stopPropagation();
         if (await copyText(code)) {
-          setCopied(true);
+          showCopied();
           onCopied?.();
-          window.setTimeout(() => setCopied(false), 1600);
         }
       }}
       title="クリックでコピー"
@@ -58,19 +80,34 @@ export function CodeButton({ code, size = "md", onCopied, display }: { code: str
         size === "sm" && "h-6 bg-pill px-2 text-[12.5px] tracking-[0.04em] hover:bg-pill-active",
       )}
     >
-      <span>{display ?? spacedCode(code)}</span>
-      <span className={cn("grid place-items-center text-fg-3 group-hover/code:text-fg", size === "sm" ? "[&_svg]:size-3" : size === "md" ? "[&_svg]:size-3.5" : "[&_svg]:size-4")}>
-        <AnimatePresence mode="popLayout" initial={false}>
-          {copied ? (
-            <motion.span key="ok" initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ opacity: 0 }} transition={spring.snappy} className="grid text-green">
-              <Check />
-            </motion.span>
-          ) : (
-            <motion.span key="copy" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid">
-              <Copy />
+      {/* コピーすると数字が上へ抜け、チェックが下から入ってくる。少しして数字に戻る */}
+      <span className="relative overflow-hidden">
+        <motion.span
+          className="block"
+          initial={false}
+          animate={copied ? { y: "-70%", opacity: 0 } : { y: "0%", opacity: 1 }}
+          transition={spring.snappy}
+        >
+          {display ?? spacedCode(code)}
+        </motion.span>
+        <AnimatePresence initial={false}>
+          {copied && (
+            <motion.span
+              key="ok"
+              initial={{ y: "70%", opacity: 0 }}
+              animate={{ y: "0%", opacity: 1 }}
+              exit={{ y: "-70%", opacity: 0 }}
+              transition={spring.snappy}
+              className={cn("absolute inset-0 flex items-center justify-center gap-1 font-semibold tracking-normal text-green", size === "sm" ? "text-[11.5px]" : "text-[13px]")}
+            >
+              <Check className={size === "sm" ? "size-3.5" : "size-4"} strokeWidth={2.4} />
+              {size !== "sm" && "コピーしました"}
             </motion.span>
           )}
         </AnimatePresence>
+      </span>
+      <span className={cn("grid place-items-center text-fg-3 group-hover/code:text-fg", size === "sm" ? "[&_svg]:size-3" : size === "md" ? "[&_svg]:size-3.5" : "[&_svg]:size-4")}>
+        <Copy />
       </span>
     </button>
   );
@@ -176,16 +213,18 @@ export function LatestCodePill() {
     <AnimatePresence>
       {visible && latest && (
         <motion.div
-          initial={{ opacity: 0, y: -6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
-          transition={spring.snappy}
+          data-morph="otp-pill"
+          initial={{ opacity: 0, scale: 0.92 }}
+          animate={latest.landed ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.92 }}
+          exit={{ opacity: 0, scale: 0.92 }}
+          transition={latest.landed ? { type: "spring", stiffness: 520, damping: 22, mass: 0.6 } : { duration: 0 }}
+          style={{ pointerEvents: latest.landed ? "auto" : "none" }}
           className="capsule mr-2 flex h-[30px] items-center gap-1 rounded-full pl-2.5 pr-1"
           title={`${latest.from}：${latest.subject}`}
         >
           <KeyRound className="size-3.5 text-blue" />
           {latest.code ? (
-            <CodeButton code={latest.code} size="sm" />
+            <CodeButton code={latest.code} size="sm" flash={!!latest.landed && latest.copied} />
           ) : (
             <button onClick={() => openExternal(latest.link)} className="cursor-default px-1.5 text-[12.5px] font-semibold text-blue hover:underline">
               認証リンクを開く

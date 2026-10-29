@@ -121,6 +121,7 @@ export function Sidebar() {
           whileTap={{ scale: 0.97 }}
           transition={spring.snappy}
           onClick={() => openComposer("new")}
+          data-compose="new"
           className="group flex h-9 w-full cursor-default items-center gap-2.5 rounded-[10px] px-2.5 text-[13px] font-medium text-fg transition-colors duration-200 hover:bg-pill-active"
         >
           <span className="grid size-6 place-items-center rounded-[7px] bg-blue text-white">

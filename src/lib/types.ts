@@ -143,4 +143,6 @@ export interface OtpEvent {
   link: string;
   copied: boolean;
   at: number;
+  /** 通知からタイトルバーへ飛んできて、着地したか */
+  landed?: boolean;
 }

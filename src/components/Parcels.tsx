@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { Check, ExternalLink, Package, PackageCheck, Truck } from "lucide-react";
 import { useStore } from "../lib/store";
 import { api, onEvent, openExternal } from "../lib/api";
@@ -47,16 +48,55 @@ function statusOf(p: ParcelInfo): { label: string; tone: "done" | "today" | "mov
   return { label: "配送中", tone: "moving", step: 1 };
 }
 
-/** 発送 → 配達中 → 配達完了 の3段階の進み具合 */
-function Progress({ step }: { step: number }) {
+/** 前に見た時の段階（進んだ時だけ伸びるように覚えておく） */
+function seenStep(number: string): number | null {
+  try {
+    const v = localStorage.getItem(`fumi:parcel-step:${number}`);
+    return v == null ? null : Number(v);
+  } catch {
+    return null;
+  }
+}
+function saveStep(number: string, step: number) {
+  try {
+    localStorage.setItem(`fumi:parcel-step:${number}`, String(step));
+  } catch {
+    /* 覚えられなくても表示には困らない */
+  }
+}
+
+/**
+ * 発送 → 配達中 → 配達完了 の3段階の進み具合。
+ * 前に見た時より進んでいたら、左からバーが伸びて次の段に届く。
+ */
+function Progress({ step, id }: { step: number; id?: string }) {
+  const [from] = useState(() => {
+    if (!id) return step;
+    const prev = seenStep(id);
+    return prev == null ? step : Math.min(prev, step);
+  });
+  useEffect(() => {
+    if (id) saveStep(id, step);
+  }, [id, step]);
+  const color = step === 3 ? "bg-green" : "bg-blue";
   return (
     <div className="flex items-center gap-1" aria-hidden>
-      {[1, 2, 3].map((i) => (
-        <span
-          key={i}
-          className={cn("h-1 flex-1 rounded-full", i <= step ? (step === 3 ? "bg-green" : "bg-blue") : "bg-pill-active")}
-        />
-      ))}
+      {[1, 2, 3].map((i) => {
+        const filled = i <= step;
+        const grows = filled && i > from;
+        return (
+          <span key={i} className="relative h-1 flex-1 overflow-hidden rounded-full bg-pill-active">
+            {filled && (
+              <motion.span
+                className={cn("absolute inset-0 origin-left rounded-full transition-colors duration-500", color)}
+                initial={grows ? { scaleX: 0 } : false}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 0.7, delay: 0.25 + (i - from - 1) * 0.55, ease: [0.65, 0, 0.35, 1] }}
+              />
+            )}
+          </span>
+        );
+      })}
     </div>
   );
 }
@@ -87,7 +127,7 @@ function ParcelCard({ p, selected, onSelect }: { p: ParcelInfo; selected: boolea
           </div>
           <p className="mt-0.5 truncate text-[12.5px] text-fg-3">{p.subject}</p>
           <div className="mt-2.5">
-            <Progress step={st.step} />
+            <Progress step={st.step} id={p.number} />
           </div>
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
             <span className="text-[12px] text-fg-3">{carrierName[p.carrier] ?? p.carrier}</span>
@@ -195,7 +235,7 @@ export function ParcelBanner({ p }: { p: ParcelInfo | null }) {
         )}
       </div>
       <div className="mt-3.5">
-        <Progress step={st.step} />
+        <Progress step={st.step} id={p.number} />
         <div className="mt-1.5 flex justify-between text-[11px] text-fg-3">
           <span>発送 {listDate(p.firstDate)}</span>
           <span>配達中</span>

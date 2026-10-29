@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, Check, Undo2, X } from "lucide-react";
 import { useStore, type Toast } from "../lib/store";
 import { spring } from "../lib/motion";
+import { flyTo, visibleRect } from "../lib/fly";
 import { cn } from "./ui";
 
 /** EasyUI UndoToast / VelocityToast を元にしたトースト。ホバー中はカウントダウンが止まる */
@@ -21,6 +22,8 @@ export function Toasts() {
 
 function ToastCard({ t, latest }: { t: Toast; latest: boolean }) {
   const resolve = useStore((s) => s.resolveToast);
+  const landOtp = useStore((s) => s.landOtp);
+  const cardRef = useRef<HTMLDivElement>(null);
   const [paused, setPaused] = useState(false);
   const remaining = useRef(t.duration);
   const done = useRef(false);
@@ -36,6 +39,11 @@ function ToastCard({ t, latest }: { t: Toast; latest: boolean }) {
       if (left <= 0) {
         if (!done.current) {
           done.current = true;
+          const target = t.morph ? visibleRect(document.querySelector(`[data-morph="${t.morph}"]`)) : null;
+          if (t.morph && target && cardRef.current) {
+            flyTo(cardRef.current, target, { duration: 520, arc: 10, onLand: landOtp });
+            cardRef.current.style.visibility = "hidden";
+          } else if (t.morph) landOtp();
           resolve(t.id, "commit");
         }
         return;
@@ -71,6 +79,7 @@ function ToastCard({ t, latest }: { t: Toast; latest: boolean }) {
 
   return (
     <motion.div
+      ref={cardRef}
       layout
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}

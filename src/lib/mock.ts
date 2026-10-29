@@ -310,6 +310,47 @@ function list(q: ViewQuery) {
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** デモ：同期するたびに新しいメールが1通届く（一覧への差し込みを確認するため） */
+const demoPool: [string, string, string, string][] = [
+  ["山田 先生", "yamada@univ.example", "来週のゼミについて", "来週のゼミは教室が変更になります。詳細は追って連絡します。"],
+  ["カフェ ミモザ", "news@mimosa.example", "秋の新作のお知らせ", "栗とほうじ茶のケーキが今週から始まりました。"],
+  ["佐藤 健", "ken@example.com", "写真送ります", "この前の旅行の写真です。いいのがあれば使ってください。"],
+];
+function demoNewMail() {
+  const p = demoPool.shift();
+  if (!p) return;
+  const base = store[0];
+  const id = nextId++;
+  store.push({
+    ...base,
+    id,
+    uid: id,
+    accountId: "g",
+    mailbox: "INBOX",
+    box: "INBOX",
+    subject: p[2],
+    fromName: p[0],
+    fromAddr: p[1],
+    date: Math.floor(Date.now() / 1000),
+    snippet: p[3],
+    text: p[3],
+    html: "",
+    seen: false,
+    flagged: false,
+    hasAttach: false,
+    attachments: [],
+    threadKey: `t${id}`,
+    messageId: `m${id}@example`,
+    otpCode: "",
+    otpLink: "",
+    parcel: null,
+    listUnsubscribe: "",
+    mailboxRole: "inbox",
+  });
+  recount();
+  emit("mail-changed", { accountId: "g", mailbox: "INBOX", newMessages: 1 });
+}
+
 if (typeof location !== "undefined" && new URLSearchParams(location.search).has("otp")) {
   setTimeout(() => {
     window.dispatchEvent(
@@ -370,6 +411,9 @@ export async function mockBackend(cmd: string, args: Record<string, unknown>): P
     }
     case "sync_all":
     case "sync_mailbox":
+      await wait(500);
+      demoNewMail();
+      return null;
     case "refresh_folders":
       await wait(500);
       return null;

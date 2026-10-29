@@ -11,6 +11,7 @@ import type {
   ViewQuery,
 } from "./types";
 import { formatAddress, quoteText, stripRe, fullDate, displayName } from "./format";
+import { flyTo, ghost, navEl, pulse, reducedMotion, visibleRect } from "./fly";
 
 export type ComposerMode = "new" | "reply" | "replyAll" | "forward";
 
@@ -42,6 +43,8 @@ export interface Toast {
   undo?: () => void;
   commit?: () => void | Promise<void>;
   duration: number;
+  /** 消える時に、この data-morph を持つ要素へ飛んでいく */
+  morph?: string;
 }
 
 export type Theme = "system" | "dark" | "light";
@@ -82,7 +85,7 @@ interface State {
   hasMore: boolean;
   hidden: Set<number>;
   /** 一覧から滑って消えていく途中のメール */
-  leaving: Map<number, "left" | "right">;
+  leaving: Map<number, "left" | "right" | "fly">;
   selectedId: number | null;
   checked: Set<number>;
   thread: MessageDetail[] | null;
@@ -97,6 +100,7 @@ interface State {
   /** 直近に届いた認証コード（タイトルバーに10分間表示する） */
   latestOtp: OtpEvent | null;
   dismissOtp: () => void;
+  landOtp: () => void;
   /** 初めて起動した時だけ true（ようこそ画面を出す） */
   firstRun: boolean;
   finishWelcome: () => void;
@@ -112,7 +116,7 @@ interface State {
   moveSelection: (delta: number) => void;
   toggleCheck: (id: number, range?: boolean) => void;
   clearChecks: () => void;
-  triage: (action: TriageAction, ids?: number[]) => void;
+  triage: (action: TriageAction, ids?: number[], opts?: { swiped?: boolean }) => void;
   openComposer: (mode: ComposerMode, source?: MessageDetail) => void;
   updateComposer: (patch: Partial<Composer>) => void;
   closeComposer: () => void;
@@ -171,6 +175,10 @@ export const useStore = create<State>((set, get) => ({
   sidebarOpen: false,
   latestOtp: null,
   dismissOtp: () => set({ latestOtp: null }),
+  landOtp: () => {
+    const o = get().latestOtp;
+    if (o && !o.landed) set({ latestOtp: { ...o, landed: true } });
+  },
   firstRun: false,
   finishWelcome: () => {
     set({ firstRun: false });
@@ -210,13 +218,15 @@ export const useStore = create<State>((set, get) => ({
     });
     onEvent<SyncStatus>("sync-status", (s) => set({ sync: { ...get().sync, [s.accountId]: s } }));
     onEvent<Omit<OtpEvent, "at">>("otp-received", (e) => {
-      const ev: OtpEvent = { ...e, at: Date.now() };
+      const ev: OtpEvent = { ...e, at: Date.now(), landed: false };
       set({ latestOtp: ev });
+      // 通知として一度見せてから、タイトルバーの定位置へ飛んで収まる
       get().pushToast({
         title: e.code ? (e.copied ? `認証コード ${e.code} をコピーしました` : `認証コード ${e.code}`) : "認証リンクが届きました",
         description: e.from,
         tone: "success",
-        duration: 6000,
+        duration: 2600,
+        morph: "otp-pill",
       });
     });
   },
@@ -337,7 +347,7 @@ export const useStore = create<State>((set, get) => ({
 
   clearChecks: () => set({ checked: new Set() }),
 
-  triage: (action, explicit) => {
+  triage: (action, explicit, opts) => {
     const state = get();
     const ids =
       explicit ?? (state.checked.size ? [...state.checked] : state.selectedId != null ? [state.selectedId] : []);
@@ -378,7 +388,9 @@ export const useStore = create<State>((set, get) => ({
     // まず行を横へ滑らせ、消え終わってから一覧から外す（下の行が詰まってくる）
     const leaving = new Map(state.leaving);
     const dir = action === "inbox" ? "right" : "left";
-    ids.forEach((i) => leaving.set(i, dir));
+    // 行がサイドバーの行き先（アーカイブ・ゴミ箱…）へ飛んでいく。見えない時は横へ滑らせる
+    const flown = opts?.swiped ? new Set<number>() : flyToFolder(ids, action, state);
+    ids.forEach((i) => leaving.set(i, flown.has(i) ? "fly" : dir));
     set({ leaving, checked: new Set() });
     window.setTimeout(() => {
       const l = new Map(get().leaving);
@@ -510,6 +522,7 @@ export const useStore = create<State>((set, get) => ({
       inReplyTo: c.inReplyTo,
       references: c.references,
     };
+    flySent();
     set({ composer: null });
     const seconds = get().settings.undoSeconds;
     const doSend = async () => {
@@ -546,6 +559,7 @@ export const useStore = create<State>((set, get) => ({
     const t = get().toasts.find((x) => x.id === id);
     set({ toasts: get().toasts.filter((x) => x.id !== id) });
     if (!t) return;
+    if (t.morph === "otp-pill" && how !== "commit") get().landOtp();
     if (how === "undo") t.undo?.();
     else t.commit?.();
   },
@@ -573,6 +587,73 @@ export const useStore = create<State>((set, get) => ({
     await get().refreshList({ keepLimit: true });
   },
 }));
+
+/** 移動先フォルダのサイドバー項目 */
+function folderNav(accountId: string, action: TriageAction, mailboxes: MailboxInfo[]): HTMLElement | null {
+  if (action === "inbox") return navEl("u:inbox:");
+  const roles = action === "archive" ? ["archive", "all"] : [action];
+  for (const r of roles) {
+    const box = mailboxes.find((m) => m.accountId === accountId && m.role === r);
+    const el = box && navEl(`m:${accountId}:${box.path}`);
+    if (visibleRect(el)) return el!;
+  }
+  return null;
+}
+
+function flyToFolder(ids: number[], action: TriageAction, state: State): Set<number> {
+  const flown = new Set<number>();
+  if (reducedMotion()) return flown;
+  const landed = new Set<HTMLElement>();
+  ids.slice(0, 6).forEach((id, i) => {
+    const row = document.querySelector<HTMLElement>(`[data-row-id="${id}"] .row-surface`);
+    const msg = state.messages.find((m) => m.id === id);
+    const fromRect = visibleRect(row);
+    if (!row || !msg || !fromRect) return;
+    const nav = folderNav(msg.accountId, action, state.mailboxes);
+    const to = visibleRect(nav);
+    if (!nav || !to) return;
+    flown.add(id);
+    window.setTimeout(() => {
+      flyTo(row, to, {
+        fromRect,
+        duration: 560,
+        onLand: () => {
+          if (landed.has(nav)) return;
+          landed.add(nav);
+          pulse(nav);
+        },
+      });
+    }, i * 45);
+  });
+  return flown;
+}
+
+/** 送信：作成画面を畳んで、サイドバーの「送信済み」へ飛ばす */
+function flySent() {
+  const el = document.querySelector<HTMLElement>("[data-composer]");
+  if (!el || reducedMotion()) return;
+  const nav = navEl("u:sent:");
+  const to = visibleRect(nav) ?? new DOMRect(window.innerWidth * 0.5, -80, 40, 30);
+  const from = el.getBoundingClientRect();
+  const g = ghost(el, from);
+  const dx = to.left + to.width / 2 - (from.left + from.width / 2);
+  const dy = to.top + to.height / 2 - (from.top + from.height / 2);
+  // 1) 封筒くらいの大きさに畳む → 2) 少し沈んでから → 3) 弧を描いて「送信済み」へ
+  (Array.from(g.children) as HTMLElement[]).forEach((k) => k.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, fill: "forwards" }));
+  g.animate(
+    [
+      { transform: "none", borderRadius: "22px", opacity: 1 },
+      { transform: "translate(0px, 0px) scale(0.36, 0.14)", borderRadius: "40px", opacity: 1, offset: 0.28 },
+      { transform: "translate(0px, 14px) scale(0.3, 0.12) rotate(4deg)", opacity: 1, offset: 0.4 },
+      { transform: `translate(${dx * 0.55}px, ${dy * 0.55 - 70}px) scale(0.16, 0.07) rotate(-14deg)`, opacity: 1, offset: 0.72 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.05, 0.03) rotate(-18deg)`, opacity: 0 },
+    ],
+    { duration: 760, easing: "cubic-bezier(0.45, 0, 0.3, 1)", fill: "forwards" },
+  ).finished.catch(() => undefined).then(() => {
+    g.remove();
+    pulse(nav);
+  });
+}
 
 // 終了前に保留中の操作を確定させる
 window.addEventListener("beforeunload", () => {

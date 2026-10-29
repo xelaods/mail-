@@ -1,11 +1,12 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { AnimatePresence, animate, motion, useMotionValue, useTransform } from "framer-motion";
+import { AnimatePresence, animate, motion, useMotionValue, useMotionValueEvent, useTransform } from "framer-motion";
 import {
   Archive,
   ArchiveRestore,
   ListFilter,
   Mail,
+  RefreshCw,
   MailOpen,
   Paperclip,
   SearchX,
@@ -18,6 +19,7 @@ import { useStore } from "../lib/store";
 import type { Account, MessageSummary, View } from "../lib/types";
 import { accountColor, displayName, listDate } from "../lib/format";
 import { spring } from "../lib/motion";
+import { rememberOpen } from "../lib/fly";
 import { Avatar, IconButton, RollingNumber, Spinner, Tooltip, cn } from "./ui";
 import { CodeButton, CodesList } from "./Codes";
 import { ParcelsList } from "./Parcels";
@@ -56,7 +58,11 @@ export function MessageList() {
   const checked = useStore((s) => s.checked);
   const settings = useStore((s) => s.settings);
   const loadMore = useStore((s) => s.loadMore);
+  const syncNow = useStore((s) => s.syncNow);
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const vkey = viewKeyOf(view);
+  const slideDir = useSlideDirection(vkey);
+  const entering = useEntering(messages, vkey, loading);
 
   useEffect(() => setUnreadOnly(false), [view]);
 
@@ -111,12 +117,21 @@ export function MessageList() {
     view.kind === "mailbox" && !search ? accounts.find((a) => a.id === view.accountId)?.email : search ? `「${search}」` : undefined;
   const multiAccount = accounts.length > 1 && view.kind === "unified";
   const isSentView = view.kind === "unified" && view.role === "sent";
+  const pull = usePullToRefresh(parentRef, syncNow);
 
   return (
     <section className="relative flex w-[392px] shrink-0 flex-col border-r border-line-subtle max-[1280px]:w-[340px] max-[980px]:w-[300px]">
       <header className="flex shrink-0 items-end justify-between gap-3 px-5 pb-3 pt-5">
         <div className="min-w-0">
-          <h1 className="truncate text-[26px] font-bold leading-[1.15] text-fg">{title}</h1>
+          <motion.h1
+            key={title}
+            initial={slideDir ? { opacity: 0, y: slideDir * 8 } : false}
+            animate={{ opacity: 1, y: 0 }}
+            transition={spring.smooth}
+            className="truncate text-[26px] font-bold leading-[1.15] text-fg"
+          >
+            {title}
+          </motion.h1>
           <p className="mt-1.5 flex items-center gap-1 truncate text-[12.5px] text-fg-3">
             {subtitle && <span className="truncate">{subtitle}　</span>}
             {loading ? (
@@ -157,7 +172,16 @@ export function MessageList() {
         className="msglist relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-2 focus:outline-none focus-visible:outline-none"
         role="listbox"
         aria-label={title}
+        onWheel={pull.onWheel}
       >
+        <PullIndicator pull={pull} />
+        <motion.div style={{ y: pull.y }} className="relative">
+        <motion.div
+          key={vkey}
+          initial={slideDir ? { opacity: 0, y: slideDir * 18 } : false}
+          animate={{ opacity: 1, y: 0 }}
+          transition={spring.smooth}
+        >
         {view.kind === "unified" && view.role === "parcels" && !search ? (
           <ParcelsList />
         ) : view.kind === "unified" && view.role === "codes" && !search ? (
@@ -188,6 +212,7 @@ export function MessageList() {
                     accountDot={acc ? accountColor(acc) : undefined}
                     isSentView={isSentView}
                     leaving={leaving.get(m.id)}
+                    entering={entering.has(m.id)}
                   />
                 </div>
               );
@@ -199,6 +224,8 @@ export function MessageList() {
             <Spinner />
           </div>
         )}
+        </motion.div>
+        </motion.div>
       </div>
 
       <SelectionBar />
@@ -224,6 +251,7 @@ const Row = memo(function Row({
   accountDot,
   isSentView,
   leaving,
+  entering,
 }: {
   m: MessageSummary;
   selected: boolean;
@@ -234,7 +262,8 @@ const Row = memo(function Row({
   lines: 1 | 2;
   accountDot?: string;
   isSentView: boolean;
-  leaving?: "left" | "right";
+  leaving?: "left" | "right" | "fly";
+  entering?: boolean;
 }) {
   const select = useStore((s) => s.select);
   const toggleCheck = useStore((s) => s.toggleCheck);
@@ -249,8 +278,19 @@ const Row = memo(function Row({
   const committed = useRef(false);
   const leftReveal = useTransform(x, [-SWIPE_MAX, -SWIPE_COMMIT, -16, 0], [1, 1, 0.4, 0]);
   const rightReveal = useTransform(x, [0, 16, SWIPE_COMMIT, SWIPE_MAX], [0, 0.4, 1, 1]);
-  const iconScaleL = useTransform(x, [-SWIPE_COMMIT - 10, -SWIPE_COMMIT + 10], [1.15, 0.85]);
-  const iconScaleR = useTransform(x, [SWIPE_COMMIT - 10, SWIPE_COMMIT + 10], [0.85, 1.15]);
+  // しきい値を越えた瞬間にアイコンが「カチッ」と大きくなる（越えたことが指で分かる）
+  const iconScaleL = useMotionValue(0.85);
+  const iconScaleR = useMotionValue(0.85);
+  const armed = useRef<0 | -1 | 1>(0);
+  const subjectRef = useRef<HTMLSpanElement>(null);
+  useMotionValueEvent(x, "change", (v) => {
+    const next = v <= -SWIPE_COMMIT ? -1 : v >= SWIPE_COMMIT ? 1 : 0;
+    if (next === armed.current) return;
+    const pop = { type: "spring", stiffness: 700, damping: 14, mass: 0.6 } as const;
+    if (next === -1 || armed.current === -1) animate(iconScaleL, next === -1 ? 1.22 : 0.85, pop);
+    if (next === 1 || armed.current === 1) animate(iconScaleR, next === 1 ? 1.22 : 0.85, pop);
+    armed.current = next;
+  });
 
   const onWheel = (e: React.WheelEvent) => {
     if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) || committed.current) return;
@@ -262,7 +302,7 @@ const Row = memo(function Row({
       if (v <= -SWIPE_COMMIT) {
         committed.current = true;
         animate(x, -420, { duration: 0.22, ease: [0.4, 0, 1, 1] });
-        triage("archive", [m.id]);
+        triage("archive", [m.id], { swiped: true });
       } else if (v >= SWIPE_COMMIT) {
         animate(x, 0, spring.responsive);
         triage(unread ? "read" : "unread", [m.id]);
@@ -282,6 +322,7 @@ const Row = memo(function Row({
   return (
     <motion.div
       role="option"
+      data-row-id={m.id}
       aria-selected={selected}
       data-selected={selected}
       onWheel={onWheel}
@@ -289,9 +330,19 @@ const Row = memo(function Row({
       onPointerLeave={() => setHovered(false)}
       onClick={(e) => {
         if (e.ctrlKey || e.metaKey || e.shiftKey || anyChecked) toggleCheck(m.id, e.shiftKey);
-        else select(m.id);
+        else {
+          rememberOpen(m.id, subjectRef.current);
+          select(m.id);
+        }
       }}
-      animate={leaving ? { opacity: 0, x: leaving === "left" ? -60 : 60, scale: 0.98 } : { opacity: 1, scale: 1 }}
+      initial={entering ? { opacity: 0, y: -14 } : false}
+      animate={
+        leaving === "fly"
+          ? { opacity: 0, transition: { duration: 0.06 } }
+          : leaving
+            ? { opacity: 0, x: leaving === "left" ? -60 : 60, scale: 0.98 }
+            : { opacity: 1, scale: 1, y: 0 }
+      }
       transition={leaving ? { duration: 0.22, ease: [0.4, 0, 1, 1] } : spring.smooth}
       className="group relative mx-2 h-full cursor-default"
     >
@@ -318,13 +369,14 @@ const Row = memo(function Row({
 
         <div className={cn("relative flex h-full gap-3 pl-6 pr-3.5", compact ? "items-center" : "pt-[13px]")}>
           {/* 未読ドット */}
-          <span
-            className={cn(
-              "row-dot absolute left-[9px] size-[9px] rounded-full bg-blue transition-[opacity,transform] duration-300",
-              compact ? "top-1/2 -translate-y-1/2" : "top-[20px]",
-              unread ? "scale-100 opacity-100" : "scale-50 opacity-0",
-            )}
-          />
+          <span className={cn("absolute left-[9px] size-[9px]", compact ? "top-1/2 -mt-[4.5px]" : "top-[20px]")}>
+            <motion.span
+              initial={false}
+              animate={unread ? { scale: 1, opacity: 1 } : { scale: [1, 1.35, 0], opacity: [1, 1, 0] }}
+              transition={unread ? spring.snappy : { duration: 0.42, times: [0, 0.3, 1], ease: [0.22, 1, 0.36, 1] }}
+              className="row-dot block size-full rounded-full bg-blue"
+            />
+          </span>
 
           {!compact && (
             <button
@@ -362,7 +414,7 @@ const Row = memo(function Row({
               <span className="row-fg3 shrink-0 text-[12px] tabular transition-opacity duration-150 group-hover:opacity-0">{listDate(m.date)}</span>
             </div>
             <div className="mt-[2px] flex items-center gap-1.5">
-              <span className={cn("row-fg min-w-0 flex-1 truncate text-[13px]", unread && "font-medium")}>{m.subject || "(件名なし)"}</span>
+              <span ref={subjectRef} className={cn("row-fg min-w-0 flex-1 truncate text-[13px]", unread && "font-medium")}>{m.subject || "(件名なし)"}</span>
               {m.otpCode && Date.now() / 1000 - m.date < 86400 && (
                 <span className="shrink-0" onClick={(e) => e.stopPropagation()}>
                   <CodeButton code={m.otpCode} size="sm" />
@@ -505,6 +557,123 @@ function EmptyList({ searching, view, filtered }: { searching: boolean; view: Vi
       <p className={cn("text-[15px] font-medium text-fg-3", !inbox && "mt-4")}>
         {searching ? "見つかりませんでした" : filtered ? "未読メッセージはありません" : "メッセージはありません"}
       </p>
+    </motion.div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* 動きのための小さなフック                                              */
+/* ------------------------------------------------------------------ */
+
+function viewKeyOf(v: View): string {
+  return v.kind === "mailbox" ? `m:${v.accountId}:${v.path}` : `u:${v.role}:${v.accountId ?? ""}`;
+}
+
+/** サイドバーで下の項目へ移ったら一覧は下から、上へなら上から入れ替わる */
+function useSlideDirection(key: string): -1 | 0 | 1 {
+  const prev = useRef(key);
+  const dir = useRef<-1 | 0 | 1>(0);
+  if (prev.current !== key) {
+    const order = Array.from(document.querySelectorAll<HTMLElement>("[data-nav]")).map((n) => n.dataset.nav);
+    const a = order.indexOf(prev.current);
+    const b = order.indexOf(key);
+    dir.current = a < 0 || b < 0 ? 1 : b > a ? 1 : -1;
+    prev.current = key;
+  }
+  return dir.current;
+}
+
+/** 開いている一覧に新しく届いたメール（上に差し込まれる行）を見つける */
+function useEntering(messages: MessageSummary[], key: string, loading: boolean): Set<number> {
+  const known = useRef<{ key: string; ids: Set<number>; newest: number } | null>(null);
+  const [entering, setEntering] = useState<Set<number>>(() => new Set());
+  useEffect(() => {
+    if (loading) return;
+    const k = known.current;
+    const ids = new Set(messages.map((m) => m.id));
+    const newest = messages.reduce((n, m) => Math.max(n, m.date), 0);
+    if (!k || k.key !== key) {
+      known.current = { key, ids, newest };
+      return;
+    }
+    const fresh = messages.filter((m) => !k.ids.has(m.id) && m.date >= k.newest).map((m) => m.id);
+    known.current = { key, ids, newest: Math.max(newest, k.newest) };
+    if (fresh.length && fresh.length < 20) {
+      setEntering(new Set(fresh));
+      const t = window.setTimeout(() => setEntering(new Set()), 900);
+      return () => window.clearTimeout(t);
+    }
+  }, [messages, key, loading]);
+  return entering;
+}
+
+const PULL_TRIGGER = 64;
+const PULL_MAX = 110;
+
+type Pull = ReturnType<typeof usePullToRefresh>;
+
+/** 一覧の一番上でさらに引っ張ると少し伸び、離すと同期する */
+function usePullToRefresh(ref: React.RefObject<HTMLDivElement | null>, onRefresh: () => Promise<void>) {
+  const y = useMotionValue(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const idle = useRef<number>(undefined);
+  const busy = useRef(false);
+
+  const release = () => {
+    const v = y.get();
+    if (v >= PULL_TRIGGER && !busy.current) {
+      busy.current = true;
+      setRefreshing(true);
+      animate(y, 44, spring.snappy);
+      const started = performance.now();
+      onRefresh().finally(() => {
+        // 一瞬で終わっても、回っているのが見える程度は待つ
+        const wait = Math.max(0, 500 - (performance.now() - started));
+        window.setTimeout(() => {
+          busy.current = false;
+          setRefreshing(false);
+          animate(y, 0, spring.smooth);
+        }, wait);
+      });
+    } else if (!busy.current) {
+      animate(y, 0, spring.responsive);
+    }
+  };
+
+  const onWheel = (e: React.WheelEvent) => {
+    const el = ref.current;
+    if (!el || busy.current || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+    const v = y.get();
+    if (e.deltaY < 0 && el.scrollTop <= 0) {
+      // 引くほど重くなるゴムのような抵抗
+      const resist = 1 - v / (PULL_MAX * 1.15);
+      y.set(Math.min(PULL_MAX, v + -e.deltaY * 0.4 * Math.max(0.1, resist)));
+    } else if (e.deltaY > 0 && v > 0) {
+      y.set(Math.max(0, v - e.deltaY * 0.6));
+    } else return;
+    window.clearTimeout(idle.current);
+    idle.current = window.setTimeout(release, 160);
+  };
+
+  return { y, refreshing, onWheel };
+}
+
+function PullIndicator({ pull }: { pull: Pull }) {
+  const opacity = useTransform(pull.y, [8, PULL_TRIGGER * 0.8], [0, 1]);
+  const rotate = useTransform(pull.y, [0, PULL_TRIGGER], [-120, 180]);
+  const scale = useTransform(pull.y, [PULL_TRIGGER - 6, PULL_TRIGGER + 4], [0.9, 1.08]);
+  const top = useTransform(pull.y, (v) => Math.max(4, v / 2 - 12));
+  return (
+    <motion.div style={{ opacity, top }} className="pointer-events-none absolute inset-x-0 z-[1] flex justify-center" aria-hidden>
+      <motion.span style={{ scale }} className="grid size-7 place-items-center rounded-full bg-pill text-fg-2">
+        {pull.refreshing ? (
+          <Spinner />
+        ) : (
+          <motion.span style={{ rotate }} className="grid">
+            <RefreshCw className="size-3.5" />
+          </motion.span>
+        )}
+      </motion.span>
     </motion.div>
   );
 }

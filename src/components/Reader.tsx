@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion, useMotionValueEvent, useScroll } from "framer-motion";
 import {
   Archive,
@@ -24,6 +24,7 @@ import { api, openExternal, pickSavePath } from "../lib/api";
 import type { AttachmentInfo, MessageDetail } from "../lib/types";
 import { accountColor, displayName, fileSize, formatAddress, fullDate, listDate, providerLabel } from "../lib/format";
 import { spring } from "../lib/motion";
+import { EASE_OUT, reducedMotion, takeOpen } from "../lib/fly";
 import { Avatar, Button, IconButton, Spinner, cn } from "./ui";
 import { BlockedBanner, HtmlFrame, TextBody } from "./EmailBody";
 import { CodeBanner } from "./Codes";
@@ -43,6 +44,64 @@ export function Reader() {
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
+  }, [selectedId]);
+
+  // j/k で次へ進んだら下から、前へ戻ったら上から本文が入ってくる
+  const prevSel = useRef<number | null>(null);
+  const dir = useRef(0);
+  if (prevSel.current !== selectedId) {
+    const a = messages.findIndex((m) => m.id === prevSel.current);
+    const b = messages.findIndex((m) => m.id === selectedId);
+    dir.current = a < 0 || b < 0 ? 0 : b > a ? 1 : -1;
+    prevSel.current = selectedId;
+  }
+
+  // 一覧で押した行の件名が、そのまま本文の見出しへ移動して大きくなる
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  useLayoutEffect(() => {
+    const el = titleRef.current;
+    if (selectedId == null || !el) return;
+    const p = takeOpen(selectedId);
+    if (!p || reducedMotion()) return;
+    // 本文側は横にはみ出すと切れるので、画面の一番上に写しを置いて動かす
+    const to = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    const g = el.cloneNode(true) as HTMLElement;
+    Object.assign(g.style, {
+      position: "fixed",
+      left: `${to.left}px`,
+      top: `${to.top}px`,
+      width: `${to.width}px`,
+      margin: "0",
+      zIndex: "60",
+      pointerEvents: "none",
+      transformOrigin: "0 0",
+      fontSize: cs.fontSize,
+      lineHeight: cs.lineHeight,
+      fontWeight: cs.fontWeight,
+      letterSpacing: cs.letterSpacing,
+      color: cs.color,
+    });
+    document.body.appendChild(g);
+    el.style.visibility = "hidden";
+    const s = p.fontSize / (parseFloat(cs.fontSize) || 28);
+    const anim = g.animate(
+      [
+        { transform: `translate(${p.rect.left - to.left}px, ${p.rect.top - to.top}px) scale(${s})`, opacity: 0.7 },
+        { opacity: 1, offset: 0.4 },
+        { transform: "none", opacity: 1 },
+      ],
+      { duration: 480, easing: EASE_OUT },
+    );
+    const done = () => {
+      g.remove();
+      el.style.visibility = "";
+    };
+    anim.finished.then(done, done);
+    return () => {
+      anim.cancel();
+      done();
+    };
   }, [selectedId]);
 
   if (selectedId == null) return <ReaderEmpty />;
@@ -71,16 +130,16 @@ export function Reader() {
       />
 
       <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-y-auto">
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
+          <div
             key={selectedId}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, transition: { duration: 0.05 } }}
-            transition={{ duration: 0.12 }}
             className="relative mx-auto w-full max-w-[860px] px-5 pb-16 pt-[68px] @min-[640px]:px-10 @min-[640px]:pt-[72px]"
           >
-            <h2 className="selectable text-[22px] font-bold leading-[1.4] text-fg @min-[640px]:text-[28px]">{subject}</h2>
+            <h2 ref={titleRef} className="selectable origin-top-left text-[22px] font-bold leading-[1.4] text-fg @min-[640px]:text-[28px]">{subject}</h2>
+            <motion.div
+              initial={{ opacity: 0, y: dir.current * 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...spring.smooth, opacity: { duration: 0.18, delay: 0.04 } }}
+            >
             <div className="mt-2.5 flex flex-wrap items-center gap-3 text-[12.5px] text-fg-3">
               {account && (
                 <span className="inline-flex items-center gap-1.5">
@@ -114,8 +173,8 @@ export function Reader() {
                 ))
               )}
             </div>
-          </motion.div>
-        </AnimatePresence>
+            </motion.div>
+          </div>
       </div>
 
     </section>
@@ -196,13 +255,13 @@ function Toolbar({ current, scrolled, subject }: { current?: MessageDetail; scro
         </IconButton>
       </Capsule>
       <Capsule>
-        <IconButton className={btn} label="返信" shortcut="R" disabled={!current} onClick={() => current && openComposer("reply", current)}>
+        <IconButton className={btn} label="返信" shortcut="R" data-compose="reply" disabled={!current} onClick={() => current && openComposer("reply", current)}>
           <Reply />
         </IconButton>
-        <IconButton className={btn} label="全員に返信" shortcut="A" disabled={!current} onClick={() => current && openComposer("replyAll", current)}>
+        <IconButton className={btn} label="全員に返信" shortcut="A" data-compose="replyAll" disabled={!current} onClick={() => current && openComposer("replyAll", current)}>
           <ReplyAll />
         </IconButton>
-        <IconButton className={btn} label="転送" shortcut="F" disabled={!current} onClick={() => current && openComposer("forward", current)}>
+        <IconButton className={btn} label="転送" shortcut="F" data-compose="forward" disabled={!current} onClick={() => current && openComposer("forward", current)}>
           <Forward />
         </IconButton>
       </Capsule>
@@ -215,8 +274,27 @@ function Toolbar({ current, scrolled, subject }: { current?: MessageDetail; scro
 /* ------------------------------------------------------------------ */
 
 function ThreadMessage({ m, first, defaultOpen, isLast }: { m: MessageDetail; first: boolean; defaultOpen: boolean; isLast: boolean }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [open, setOpenState] = useState(defaultOpen);
   const [details, setDetails] = useState(false);
+  // 開閉した時だけ、前の高さから今の高さへ伸び縮みさせる（下のメールが押し下げられる）
+  const boxRef = useRef<HTMLElement>(null);
+  const fromH = useRef<number | null>(null);
+  const [animating, setAnimating] = useState(false);
+  const setOpen = (v: boolean) => {
+    fromH.current = boxRef.current?.offsetHeight ?? null;
+    setAnimating(true);
+    setOpenState(v);
+  };
+  const grow = fromH.current != null && !reducedMotion();
+  const sizeProps = {
+    initial: grow ? { height: fromH.current! } : false,
+    animate: { height: "auto" },
+    transition: spring.gentle,
+    onAnimationComplete: () => {
+      fromH.current = null;
+      setAnimating(false);
+    },
+  } as const;
   const [allowRemote, setAllowRemote] = useState(false);
   const [blocked, setBlocked] = useState(0);
   const accounts = useStore((s) => s.accounts);
@@ -235,11 +313,11 @@ function ThreadMessage({ m, first, defaultOpen, isLast }: { m: MessageDetail; fi
   if (!open) {
     return (
       <motion.button
-        layout="position"
-        transition={spring.gentle}
+        ref={boxRef as React.RefObject<HTMLButtonElement>}
+        {...sizeProps}
         onClick={() => setOpen(true)}
         className={cn(
-          "group relative flex w-full cursor-default items-center gap-3 rounded-[12px] px-3 py-3 text-left transition-colors hover:bg-pill",
+          "group relative flex w-full cursor-default items-center gap-3 overflow-hidden rounded-[12px] px-3 py-3 text-left transition-colors hover:bg-pill",
           !first && "mt-px",
         )}
       >
@@ -253,7 +331,11 @@ function ThreadMessage({ m, first, defaultOpen, isLast }: { m: MessageDetail; fi
   }
 
   return (
-    <motion.article layout="position" transition={spring.gentle} className={cn("relative", !first && "mt-2 pt-6")}>
+    <motion.article
+      ref={boxRef}
+      {...sizeProps}
+      className={cn("relative", !first && "mt-2 pt-6", animating && "overflow-hidden")}
+    >
       {!first && <span className="absolute inset-x-0 top-0 h-px bg-line-subtle" />}
       <header
         onClick={() => !isLast && setOpen(false)}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, Maximize2, Minimize2, Minus, MoreHorizontal, Paperclip, Send, Trash2, X } from "lucide-react";
 import { useStore } from "../lib/store";
@@ -6,6 +6,7 @@ import { api, pickFiles } from "../lib/api";
 import type { Address } from "../lib/types";
 import { accountColor, displayName, formatAddress } from "../lib/format";
 import { spring } from "../lib/motion";
+import { growFrom, reducedMotion, shrinkInto, visibleRect } from "../lib/fly";
 import { Button, IconButton, Kbd, cn } from "./ui";
 
 const EMAIL_RE = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
@@ -24,6 +25,25 @@ export function Composer() {
   const [fromOpen, setFromOpen] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const toRef = useRef<HTMLInputElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const originOf = (mode: string) => visibleRect(document.querySelector(`[data-compose="${mode}"]`));
+
+  // 押したボタン（返信・新規メッセージ）の位置から広がって出てくる
+  useLayoutEffect(() => {
+    const el = boxRef.current;
+    if (!c || !el || reducedMotion()) return;
+    const origin = originOf(c.mode);
+    if (origin) growFrom(el, origin, { duration: 460 });
+    else
+      el.animate(
+        [
+          { transform: "translateY(40px) scale(0.96)", opacity: 0 },
+          { transform: "none", opacity: 1 },
+        ],
+        { duration: 360, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+      );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [c?.key]);
 
   // 開いた時のフォーカス：宛先が空なら宛先、それ以外は本文の先頭
   useEffect(() => {
@@ -58,17 +78,18 @@ export function Composer() {
   const discard = () => {
     const hasContent = c.body.trim() || c.subject.trim() || c.attachments.length;
     if (hasContent && !window.confirm("この下書きを破棄しますか？")) return;
+    // 出てきたボタンへ吸い込まれて閉じる
+    const el = boxRef.current;
+    const origin = originOf(c.mode);
+    if (el && origin && !c.minimized) shrinkInto(el, origin);
     close();
   };
 
   return (
-    <AnimatePresence>
-      <motion.div
+      <div
         key={c.key}
-        initial={{ opacity: 0, y: 40, scale: 0.96 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 30, scale: 0.97 }}
-        transition={spring.smooth}
+        ref={boxRef}
+        data-composer
         onKeyDown={onKeyDown}
         className={cn(
           "fixed z-40 flex flex-col overflow-hidden bg-surface shadow-float",
@@ -238,8 +259,7 @@ export function Composer() {
             </div>
           </>
         )}
-      </motion.div>
-    </AnimatePresence>
+      </div>
   );
 }
 
