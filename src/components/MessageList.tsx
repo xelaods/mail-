@@ -20,6 +20,7 @@ import { accountColor, displayName, listDate } from "../lib/format";
 import { spring } from "../lib/motion";
 import { Avatar, IconButton, RollingNumber, Spinner, Tooltip, cn } from "./ui";
 import { CodeButton, CodesList } from "./Codes";
+import { ParcelsList } from "./Parcels";
 
 function viewTitle(view: View, accounts: Account[], mailboxName?: string): string {
   if (view.kind === "mailbox") {
@@ -30,6 +31,7 @@ function viewTitle(view: View, accounts: Account[], mailboxName?: string): strin
     inbox: "受信",
     unread: "未読",
     codes: "コード",
+    parcels: "荷物",
     flagged: "スター付き",
     attachments: "添付ファイル",
     sent: "送信済み",
@@ -119,6 +121,8 @@ export function MessageList() {
             {subtitle && <span className="truncate">{subtitle}　</span>}
             {loading ? (
               "読み込み中"
+            ) : view.kind === "unified" && view.role === "parcels" && !search ? (
+              <>発送メールから自動で追跡</>
             ) : view.kind === "unified" && view.role === "codes" && !search ? (
               <>確認コード・認証リンク {items.length} 件</>
             ) : unread > 0 ? (
@@ -154,7 +158,9 @@ export function MessageList() {
         role="listbox"
         aria-label={title}
       >
-        {view.kind === "unified" && view.role === "codes" && !search ? (
+        {view.kind === "unified" && view.role === "parcels" && !search ? (
+          <ParcelsList />
+        ) : view.kind === "unified" && view.role === "codes" && !search ? (
           loading && items.length === 0 ? <ListSkeleton rowHeight={rowHeight} /> : <CodesList items={items} />
         ) : loading && items.length === 0 ? (
           <ListSkeleton rowHeight={rowHeight} />

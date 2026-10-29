@@ -164,6 +164,11 @@ pub fn find_code(subject: &str, body: &str) -> Option<String> {
     None
 }
 
+/// 他のモジュールから使う版
+pub fn anchors_public(html: &str) -> Vec<(String, String)> {
+    anchors(html)
+}
+
 /// HTML の a 要素（href と表示文字）を拾う簡易パーサ
 fn anchors(html: &str) -> Vec<(String, String)> {
     let mut out = Vec::new();

@@ -5,6 +5,7 @@ mod imap_client;
 mod mime;
 mod model;
 mod oauth;
+mod parcels;
 mod secrets;
 mod smtp;
 
@@ -126,6 +127,11 @@ async fn remove_account(state: State<'_, AppState>, id: String) -> Res<()> {
     state.engine.stop_watch(&id);
     secrets::delete_password(&id);
     state.engine.db.delete_account(&id).map_err(err)
+}
+
+#[tauri::command]
+async fn list_parcels(state: State<'_, AppState>) -> Res<Vec<ParcelInfo>> {
+    state.engine.db.parcels().map_err(err)
 }
 
 #[tauri::command]
@@ -281,6 +287,7 @@ pub fn run() {
             update_account,
             remove_account,
             list_mailboxes,
+            list_parcels,
             list_messages,
             get_thread,
             sync_mailbox,

@@ -1,5 +1,5 @@
 // ブラウザだけで UI を確認するためのデモ用バックエンド（Tauri 上では使われない）
-import type { Account, MailboxInfo, MessageDetail, Role, ViewQuery } from "./types";
+import type { Account, MailboxInfo, MessageDetail, ParcelInfo, Role, ViewQuery } from "./types";
 
 const now = Math.floor(Date.now() / 1000);
 const h = 3600;
@@ -53,6 +53,21 @@ const newsletter = (title: string, lead: string) => `
 </div>`;
 
 const seeds: Seed[] = [
+  {
+    acc: "g", box: "INBOX", from: ["オンラインストア", "order@shop.example"], subject: "【本日お届け】ご注文の商品をお届けにあがります",
+    ago: 1.6 * h,
+    text: "本日、ご注文の商品をお届けします。\n配送業者：ヤマト運輸\nお問い合わせ番号：4321-5678-9012",
+  },
+  {
+    acc: "i", box: "INBOX", from: ["ガジェットショップ", "shop@gadget.example"], subject: "商品発送のお知らせ",
+    ago: 20 * h, seen: true,
+    text: `ご注文の商品を発送いたしました。\n配送方法：ゆうパック\n追跡番号：1234-5678-9013\nお届け予定日：${new Date(Date.now() + 2 * 86400000).getMonth() + 1}月${new Date(Date.now() + 2 * 86400000).getDate()}日`,
+  },
+  {
+    acc: "g", box: "INBOX", from: ["書店オンライン", "info@books.example"], subject: "お荷物の配達が完了しました",
+    ago: 30 * h, seen: true,
+    text: "佐川急便 お問い合わせ番号 3601-2345-6789 のお荷物の配達が完了しました。",
+  },
   {
     acc: "g", box: "INBOX", from: ["オンラインバンク", "no-reply@bank.example"], subject: "【オンラインバンク】ワンタイムパスワードのお知らせ",
     ago: 0.03 * h,
@@ -168,6 +183,24 @@ const seeds: Seed[] = [
 ];
 
 let nextId = 1;
+/** Rust 側（parcels.rs）の検出をデモ用に簡略化したもの */
+function detectParcel(id: number, s: Seed): ParcelInfo | null {
+  const t = `${s.subject}\n${s.text}`;
+  const m = t.match(/(?:お問い合わせ番号|追跡番号)[：:\s]*([0-9-]{12,14})/);
+  if (!m) return null;
+  const number = m[1].replace(/-/g, "");
+  const carrier: ParcelInfo["carrier"] = /ヤマト/.test(t) ? "yamato" : /佐川/.test(t) ? "sagawa" : /ゆうパック|郵便/.test(t) ? "japanpost" : "";
+  const eta = t.match(/お届け予定日：(\d+)月(\d+)日/);
+  const y = new Date().getFullYear();
+  const date = Math.floor(Date.now() / 1000 - s.ago);
+  return {
+    id, accountId: s.acc, fromName: s.from[0], fromAddr: s.from[1], subject: s.subject, date, firstDate: date, carrier, number,
+    eta: eta ? `${y}-${eta[1].padStart(2, "0")}-${eta[2].padStart(2, "0")}` : "",
+    status: /完了/.test(t) ? "delivered" : /本日/.test(t) ? "out" : "shipped",
+    link: carrier ? `https://example.com/track/${number}` : "",
+  };
+}
+
 /** Rust 側（codes.rs）の検出をデモ用に簡略化したもの */
 function detectOtp(subject: string, text: string, html: string): { otpCode: string; otpLink: string } {
   const all = `${subject}\n${text}`;
@@ -207,6 +240,7 @@ const store: (MessageDetail & { box: string })[] = seeds.map((s) => {
     listUnsubscribe: s.html ? "<https://example.com/unsub>" : "",
     mailboxRole: mailboxes.find((m) => m.accountId === s.acc && m.path === s.box)?.role ?? "custom",
     ...detectOtp(s.subject, s.text, s.html ?? ""),
+    parcel: detectParcel(id, s),
   };
 });
 
@@ -239,6 +273,8 @@ function list(q: ViewQuery) {
         return m.flagged && role !== "trash" && role !== "junk";
       case "unread":
         return !m.seen && role === "inbox";
+      case "parcels":
+        return !!m.parcel;
       case "codes":
         return (m.otpCode || m.otpLink) && role !== "trash" && role !== "junk";
       case "attachments":
@@ -292,6 +328,11 @@ export async function mockBackend(cmd: string, args: Record<string, unknown>): P
     case "list_mailboxes":
       recount();
       return mailboxes;
+    case "list_parcels":
+      return store
+        .filter((m) => m.parcel)
+        .map((m) => m.parcel!)
+        .sort((a, b) => (a.status === "delivered" ? 1 : 0) - (b.status === "delivered" ? 1 : 0) || b.date - a.date);
     case "list_messages":
       return list(args.query as ViewQuery);
     case "get_thread": {

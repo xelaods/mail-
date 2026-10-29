@@ -167,8 +167,102 @@ impl Db {
                 }
             }
         }
+        let has_parcel: bool = conn
+            .prepare("SELECT 1 FROM pragma_table_info('messages') WHERE name='parcel_number'")?
+            .exists([])?;
+        if !has_parcel {
+            conn.execute_batch(
+                "ALTER TABLE messages ADD COLUMN parcel_carrier TEXT NOT NULL DEFAULT '';
+                 ALTER TABLE messages ADD COLUMN parcel_number TEXT NOT NULL DEFAULT '';
+                 ALTER TABLE messages ADD COLUMN parcel_eta TEXT NOT NULL DEFAULT '';
+                 ALTER TABLE messages ADD COLUMN parcel_status TEXT NOT NULL DEFAULT '';
+                 ALTER TABLE messages ADD COLUMN parcel_link TEXT NOT NULL DEFAULT '';",
+            )?;
+            let since = chrono::Utc::now().timestamp() - 60 * 86400;
+            let rows: Vec<(i64, String, String, String, i64)> = conn
+                .prepare("SELECT id, subject, text_body, html_body, date FROM messages WHERE date >= ?1 AND has_body = 1")?
+                .query_map(params![since], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))?
+                .collect::<rusqlite::Result<_>>()?;
+            for (id, subject, text, html, date) in rows {
+                if let Some(p) = crate::parcels::detect(&subject, &text, &html, date) {
+                    Self::write_parcel(conn, id, &p)?;
+                }
+            }
+        }
+        conn.execute_batch("CREATE INDEX IF NOT EXISTS idx_messages_parcel ON messages(parcel_number) WHERE parcel_number <> '';")?;
         conn.execute_batch("CREATE INDEX IF NOT EXISTS idx_messages_otp ON messages(date DESC) WHERE otp_code <> '' OR otp_link <> '';")?;
         Ok(())
+    }
+
+    fn write_parcel(conn: &Connection, id: i64, p: &crate::parcels::Parcel) -> Result<()> {
+        conn.execute(
+            "UPDATE messages SET parcel_carrier=?2, parcel_number=?3, parcel_eta=?4, parcel_status=?5, parcel_link=?6 WHERE id=?1",
+            params![id, p.carrier, p.number, p.eta, p.status, p.link],
+        )?;
+        Ok(())
+    }
+
+    /// 「荷物」タブ：追跡番号ごとに最新のメールを1件。配達前のものを先に
+    pub fn parcels(&self) -> Result<Vec<ParcelInfo>> {
+        let conn = self.conn.lock();
+        let mut st = conn.prepare(
+            "WITH p AS (
+               SELECT m.*, ROW_NUMBER() OVER (PARTITION BY m.parcel_number ORDER BY m.date DESC) AS rn,
+                      MIN(m.date) OVER (PARTITION BY m.parcel_number) AS first_date,
+                      MAX(CASE WHEN m.parcel_eta <> '' THEN m.parcel_eta END) OVER (PARTITION BY m.parcel_number) AS any_eta,
+                      MAX(CASE WHEN m.parcel_status = 'delivered' THEN 1 ELSE 0 END) OVER (PARTITION BY m.parcel_number) AS done
+               FROM messages m LEFT JOIN mailboxes b ON b.account_id = m.account_id AND b.path = m.mailbox
+               WHERE m.parcel_number <> '' AND COALESCE(b.role,'custom') NOT IN ('trash','junk')
+             )
+             SELECT id, account_id, from_name, from_addr, subject, date, parcel_carrier, parcel_number,
+                    COALESCE(NULLIF(parcel_eta,''), any_eta, ''), CASE WHEN done = 1 THEN 'delivered' ELSE parcel_status END,
+                    parcel_link, first_date
+             FROM p WHERE rn = 1
+             ORDER BY CASE WHEN done = 1 THEN 1 ELSE 0 END, date DESC LIMIT 200",
+        )?;
+        let rows = st.query_map([], |r| {
+            Ok(ParcelInfo {
+                id: r.get(0)?,
+                account_id: r.get(1)?,
+                from_name: r.get(2)?,
+                from_addr: r.get(3)?,
+                subject: r.get(4)?,
+                date: r.get(5)?,
+                carrier: r.get(6)?,
+                number: r.get(7)?,
+                eta: r.get(8)?,
+                status: r.get(9)?,
+                link: r.get(10)?,
+                first_date: r.get(11)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    fn parcel_of(conn: &Connection, id: i64) -> Result<Option<ParcelInfo>> {
+        Ok(conn
+            .query_row(
+                "SELECT id, account_id, from_name, from_addr, subject, date, parcel_carrier, parcel_number, parcel_eta,
+                        parcel_status, parcel_link, date FROM messages WHERE id=?1 AND parcel_number <> ''",
+                params![id],
+                |r| {
+                    Ok(ParcelInfo {
+                        id: r.get(0)?,
+                        account_id: r.get(1)?,
+                        from_name: r.get(2)?,
+                        from_addr: r.get(3)?,
+                        subject: r.get(4)?,
+                        date: r.get(5)?,
+                        carrier: r.get(6)?,
+                        number: r.get(7)?,
+                        eta: r.get(8)?,
+                        status: r.get(9)?,
+                        link: r.get(10)?,
+                        first_date: r.get(11)?,
+                    })
+                },
+            )
+            .optional()?)
     }
 
     // ---------- アカウント ----------
@@ -431,6 +525,11 @@ impl Db {
         )?;
         let id = tx.last_insert_rowid();
         if tx.changes() > 0 {
+            if p.has_body {
+                if let Some(parcel) = crate::parcels::detect(&p.subject, &p.text, &p.html, p.date) {
+                    Self::write_parcel(&tx, id, &parcel)?;
+                }
+            }
             Self::index_fts(&tx, id, p)?;
         }
         tx.commit()?;
@@ -476,6 +575,9 @@ impl Db {
                 found.link,
             ],
         )?;
+        if let Some(parcel) = crate::parcels::detect(&p.subject, &p.text, &p.html, p.date) {
+            Self::write_parcel(&tx, id, &parcel)?;
+        }
         Self::index_fts(&tx, id, p)?;
         tx.commit()?;
         Ok(())
@@ -613,6 +715,7 @@ impl Db {
             references,
             list_unsubscribe: unsub,
             mailbox_role: role,
+            parcel: Self::parcel_of(&conn, id)?,
         })
     }
 

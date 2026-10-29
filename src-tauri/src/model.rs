@@ -125,6 +125,27 @@ pub struct MessageDetail {
     pub references: String,
     pub list_unsubscribe: String,
     pub mailbox_role: String,
+    /// 発送メールから読み取った荷物の情報
+    pub parcel: Option<ParcelInfo>,
+}
+
+/// 「荷物」タブに並べる1件（追跡番号ごとに最新のメール）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParcelInfo {
+    pub id: i64,
+    pub account_id: String,
+    pub from_name: String,
+    pub from_addr: String,
+    pub subject: String,
+    pub date: i64,
+    pub carrier: String,
+    pub number: String,
+    pub eta: String,
+    pub status: String,
+    pub link: String,
+    /// 同じ追跡番号のメールが最初に届いた日時（発送日）
+    pub first_date: i64,
 }
 
 /// メッセージ一覧の取得条件

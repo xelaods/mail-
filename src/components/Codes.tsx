@@ -38,7 +38,7 @@ function useNow(intervalMs = 30_000) {
 }
 
 /** コードを表示し、押すとコピーするボタン */
-export function CodeButton({ code, size = "md", onCopied }: { code: string; size?: "sm" | "md" | "lg"; onCopied?: () => void }) {
+export function CodeButton({ code, size = "md", onCopied, display }: { code: string; size?: "sm" | "md" | "lg"; onCopied?: () => void; display?: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
@@ -58,7 +58,7 @@ export function CodeButton({ code, size = "md", onCopied }: { code: string; size
         size === "sm" && "h-6 bg-pill px-2 text-[12.5px] tracking-[0.04em] hover:bg-pill-active",
       )}
     >
-      <span>{spacedCode(code)}</span>
+      <span>{display ?? spacedCode(code)}</span>
       <span className={cn("grid place-items-center text-fg-3 group-hover/code:text-fg", size === "sm" ? "[&_svg]:size-3" : size === "md" ? "[&_svg]:size-3.5" : "[&_svg]:size-4")}>
         <AnimatePresence mode="popLayout" initial={false}>
           {copied ? (

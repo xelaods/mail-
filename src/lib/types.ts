@@ -77,10 +77,30 @@ export interface MessageDetail extends MessageSummary {
   references: string;
   listUnsubscribe: string;
   mailboxRole: Role;
+  parcel: ParcelInfo | null;
+}
+
+export type Carrier = "yamato" | "sagawa" | "japanpost" | "amazon" | "seino" | "fukuyama" | "ups" | "fedex" | "dhl" | "";
+
+/** 発送メールから読み取った荷物 */
+export interface ParcelInfo {
+  id: number;
+  accountId: string;
+  fromName: string;
+  fromAddr: string;
+  subject: string;
+  date: number;
+  carrier: Carrier;
+  number: string;
+  /** YYYY-MM-DD（不明なら空） */
+  eta: string;
+  status: "shipped" | "out" | "delivered" | "";
+  link: string;
+  firstDate: number;
 }
 
 export type View =
-  | { kind: "unified"; role: "inbox" | "flagged" | "unread" | "codes" | "attachments" | "sent" | "archive" | "trash" | "junk" | "drafts"; accountId?: string }
+  | { kind: "unified"; role: "inbox" | "flagged" | "unread" | "codes" | "parcels" | "attachments" | "sent" | "archive" | "trash" | "junk" | "drafts"; accountId?: string }
   | { kind: "mailbox"; accountId: string; path: string };
 
 export interface ViewQuery {

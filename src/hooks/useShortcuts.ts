@@ -39,6 +39,7 @@ export function useShortcuts() {
           t: () => s.setView({ kind: "unified", role: "sent" }),
           u: () => s.setView({ kind: "unified", role: "unread" }),
           c: () => s.setView({ kind: "unified", role: "codes" }),
+          p: () => s.setView({ kind: "unified", role: "parcels" }),
         };
         map[e.key.toLowerCase()]?.();
         return;

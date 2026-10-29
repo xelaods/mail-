@@ -27,6 +27,7 @@ import { spring } from "../lib/motion";
 import { Avatar, Button, IconButton, Spinner, cn } from "./ui";
 import { BlockedBanner, HtmlFrame, TextBody } from "./EmailBody";
 import { CodeBanner } from "./Codes";
+import { ParcelBanner } from "./Parcels";
 
 export function Reader() {
   const thread = useStore((s) => s.thread);
@@ -313,6 +314,7 @@ function ThreadMessage({ m, first, defaultOpen, isLast }: { m: MessageDetail; fi
 
       <div className="mt-6">
         <CodeBanner code={m.otpCode} link={m.otpLink} />
+        <ParcelBanner p={m.parcel} />
         {m.html ? (
           <>
             <BlockedBanner
