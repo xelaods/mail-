@@ -181,6 +181,26 @@ async fn sync_all(state: State<'_, AppState>) -> Res<()> {
     if errors.is_empty() { Ok(()) } else { Err(errors.join("\n")) }
 }
 
+/// Latest verification code already indexed by Fumi, for the iOS widget bridge.
+/// Never returns the authentication link or email body.
+#[tauri::command]
+async fn latest_widget_otp(state: State<'_, AppState>) -> Res<Option<WidgetOtp>> {
+    let q = ViewQuery { kind: "unified".into(), role: Some("codes".into()), account_id: None,
+        path: None, search: None, limit: Some(30), offset: Some(0) };
+    let now = chrono::Utc::now().timestamp();
+    let found = state.engine.db.list(&q).map_err(err)?
+        .into_iter()
+        .filter(|m| !m.otp_code.is_empty() && m.date <= now && now - m.date < 900)
+        .max_by_key(|m| m.date);
+    Ok(found.map(|m| WidgetOtp { code: m.otp_code, sender: m.from_name,
+        received_at: m.date }))
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WidgetOtp { code: String, sender: String, received_at: i64 }
+
+
 #[tauri::command]
 async fn refresh_folders(state: State<'_, AppState>, account_id: String) -> Res<()> {
     let engine = state.engine.clone();
@@ -292,6 +312,7 @@ pub fn run() {
             list_mailboxes,
             list_parcels,
             list_messages,
+            latest_widget_otp,
             get_thread,
             sync_mailbox,
             sync_all,
