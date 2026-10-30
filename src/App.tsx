@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, useState } from "react";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { useNarrow } from "./hooks/useNarrow";
+import { useMobile } from "./hooks/useMobile";
 import { useStore } from "./lib/store";
 import { useShortcuts } from "./hooks/useShortcuts";
 import { TitleBar } from "./components/TitleBar";
@@ -30,6 +31,8 @@ export default function App() {
   const init = useStore((s) => s.init);
   const ready = useStore((s) => s.ready);
   const narrow = useNarrow();
+  const mobile = useMobile();
+  const selectedId = useStore((s) => s.selectedId);
   const sidebarOpen = useStore((s) => s.sidebarOpen);
   const setSidebarOpen = useStore((s) => s.setSidebarOpen);
   const dialog = useStore((s) => s.dialog);
@@ -66,11 +69,14 @@ export default function App() {
       <div className="wallpaper" />
       <div className={`relative z-[1] flex h-full flex-col transition-opacity duration-150 ${ready ? "opacity-100" : "opacity-0"}`}>
         <TitleBar />
-        <main className="flex min-h-0 flex-1 gap-2 px-2 pb-2">
+        {mobile && selectedId != null && (
+          <button type="button" onClick={() => useStore.getState().select(null)} className="flex min-h-11 items-center px-5 text-sm font-semibold text-fg" aria-label="メール一覧に戻る">‹ 受信一覧に戻る</button>
+        )}
+        <main className={`flex min-h-0 flex-1 gap-2 px-2 pb-2 ${mobile ? "flex-col" : ""}`}>
           {!narrow && <Sidebar />}
-          <div className="relative flex min-w-0 flex-1 overflow-hidden rounded-[16px] bg-content shadow-panel">
-            <MessageList />
-            <Reader />
+          <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-[16px] bg-content shadow-panel">
+            {(!mobile || selectedId == null) && <MessageList />}
+            {(!mobile || selectedId != null) && <Reader />}
           </div>
         </main>
       </div>
