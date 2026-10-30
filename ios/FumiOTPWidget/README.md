@@ -1,22 +1,29 @@
-# Fumi iOS authentication-code widget
+# Fumi OTP iOS widget — integration checklist
 
-This is **WidgetKit source, not a compiled iPhone app**. The widget and the app-side bridge are supplied, but must be integrated into the generated Xcode project.
+The iOS widget, app-side App Group bridge, native Tauri plugin, frontend synchronization, and Rust OTP query are now included in this branch.
 
-## Integration
+## Connect the generated Xcode project
 
-1. On a Mac, install Xcode and Tauri 2 prerequisites, run `npm ci && npx tauri ios init`.
-2. Open the generated iOS Xcode workspace. Add a **Widget Extension** target.
-3. Add `FumiOTPWidget.swift` to the widget extension only. Add `WidgetBridge.swift` to the **main app** target only.
-4. Enable **App Groups** entitlement `group.dev.xelaods.fumi` for **both** targets, and replace the identifier in both Swift files if your Apple team uses a different one.
-5. Implement the native Tauri Swift plugin bridge from the Rust/JavaScript mail event to `FumiOTPWidgetBridge.publish(code:sender:receivedAt:)`. This is NOT connected yet.
-6. After foreground IMAP synchronization, select the newest OTP from the existing `codes` view, publish it, and clear it when the account is removed or the code is stale. Never publish OTP links or account passwords.
-7. Route `fumi://codes` to the Codes view in the main app and configure its URL scheme in Xcode.
-8. Configure signing, build on iPhone, test home-screen display and privacy behavior.
+1. On macOS with Xcode, install the Tauri 2 iOS prerequisites, run `npm ci` and `npx tauri ios init`.
+2. Add an Xcode **Widget Extension** with the SwiftUI/WidgetKit source `FumiOTPWidget.swift`. Do not add it to the main app target.
+3. Add `WidgetBridge.swift` and `FumiWidgetPlugin.swift` to the iOS main app/native plugin target. The plugin must be linked using Tauri's mobile-plugin Swift package process, including the exported `init_plugin_fumi_widget` entry point. The Rust registration in `src-tauri/src/widget_plugin.rs` expects that symbol.
+4. Configure the same App Group `group.dev.xelaods.fumi` in **both** the main app and widget entitlements and in the Apple Developer portal. If the chosen identifier differs, update both Swift files.
+5. Set up the `fumi://` URL scheme and route `fumi://codes` into the app's Codes view. This route is not yet installed in the generated project.
+6. Set the target signing team, provisioning, app and extension bundle identifiers; generate an iPhone build and test the whole flow.
 
-## Security and limitations
+## Data flow
 
-- **Hide the code by default**: setting `hideCodeOnWidget=true` (the default) shows only dots. Exposing an OTP on the home screen can leak it to people nearby or in screenshots.
-- The app group stores a short-lived secret in a shared container. Do **not** include this content in backups, analytics or logs.
-- The widget timeline checks age at render, but it may remain stale while iOS delays widget updates. The app must clear old codes.
-- **WidgetKit cannot run IMAP IDLE continuously**, and this code **does not** fetch email in the widget. Foreground sync and a working native plugin are required. Live background delivery would need a separately designed server/APNs pipeline.
-- Native project generation, signing, live mail retrieval, installation, and device tests have not yet been performed.
+1. Fumi's existing Rust parser extracts an OTP during IMAP synchronization.
+2. The new Rust command `latest_widget_otp` returns the newest indexed code within 15 minutes, without exposing body, link or credentials.
+3. `src/lib/widgetSync.ts` listens for synchronization events and app visibility; it invokes native plugin commands to update the shared App Group.
+4. The widget reads this snapshot and transitions to an expired state after 15 minutes.
+5. The new phone title bar offers an explicit **コードを表示** toggle; default is hidden because OTPs can be sensitive.
+
+## Remaining limitations and verification
+
+- This repository has **not** produced or verified a signed iOS build. Native generated Xcode project, Swift package linkage, App Group registration and signing are still required.
+- Current Windows-style Google loopback OAuth is **not** a validated iOS OAuth flow. Use an iOS-compatible authorization session + redirect URI before claiming Gmail sign-in works; app-password login may be provider-restricted.
+- iOS widgets cannot hold an IMAP connection in the background; **instant updates while the app is terminated are not implemented**. A server + APNs based approach would require account authorization, secure deployment and careful handling of authentication codes.
+- Do not assume email/OTP retrieval is possible while iOS suspends the application.
+- Home-screen widgets are not safe places for secrets when visible; revealing codes is opt-in and may expose them to screenshots or someone nearby.
+- Run `npm run build`, `cargo test` and iOS simulator + device tests before merging.
