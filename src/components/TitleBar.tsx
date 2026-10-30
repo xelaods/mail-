@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Minus, PanelLeft, RefreshCw, Search, Settings2, Square, X } from "lucide-react";
 import { useNarrow } from "../hooks/useNarrow";
+import { useMobile } from "../hooks/useMobile";
+import { setWidgetCodeVisibility } from "../lib/widgetSync";
 import { LatestCodePill } from "./Codes";
 import { useStore } from "../lib/store";
 import { useShallow } from "zustand/react/shallow";
@@ -22,6 +24,8 @@ async function closeWindow() {
 
 export function TitleBar() {
   const narrow = useNarrow();
+  const mobile = useMobile();
+  const [showWidgetCode, setShowWidgetCode] = useState(() => window.localStorage.getItem("fumi-widget-code-visible") === "yes");
   const sidebarOpen = useStore((s) => s.sidebarOpen);
   const setSidebarOpen = useStore((s) => s.setSidebarOpen);
   const search = useStore((s) => s.search);
@@ -125,6 +129,7 @@ export function TitleBar() {
 
       <div className="flex items-center gap-0.5">
         <LatestCodePill />
+        {mobile && <button type="button" className="rounded-lg px-2 py-1 text-xs text-fg" title="ホーム画面の認証コード表示" onClick={() => { const next = !showWidgetCode; setShowWidgetCode(next); void setWidgetCodeVisibility(next); }}>{showWidgetCode ? "コード表示中" : "コードを表示"}</button>}
         {errors.length > 0 && (
           <button
             onClick={() => setDialog("settings")}
