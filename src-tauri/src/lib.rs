@@ -8,6 +8,7 @@ mod oauth;
 mod parcels;
 mod secrets;
 mod smtp;
+mod widget_plugin;
 
 use std::sync::Arc;
 
@@ -283,6 +284,7 @@ pub fn run() {
     let _ = tokio_rustls::rustls::crypto::ring::default_provider().install_default();
 
     tauri::Builder::default()
+        .plugin(widget_plugin::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
