@@ -52,6 +52,7 @@ async fn register(engine: &Arc<Engine>, provider: Provider, email: String, name:
     secrets::set_password(&account.id, secret).map_err(err)?;
     engine.db.insert_account(&account).map_err(err)?;
     engine.refresh_mailboxes(&account).await.map_err(err)?;
+    #[cfg(not(mobile))]
     engine.start_watch(account.clone());
     Ok(account)
 }
@@ -108,6 +109,7 @@ async fn reauth_google_account(state: State<'_, AppState>, id: String) -> Res<()
     secrets::set_password(&account.id, &secret).map_err(err)?;
     engine.forget_credentials(&account.id);
     engine.stop_watch(&account.id);
+    #[cfg(not(mobile))]
     engine.start_watch(account);
     Ok(())
 }
