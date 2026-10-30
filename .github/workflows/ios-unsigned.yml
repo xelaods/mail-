@@ -34,6 +34,8 @@ jobs:
         run: npm run build
       - name: Generate iOS workspace
         run: npx tauri ios init --ci
+      - name: Inspect generated schemes
+        run: find src-tauri/gen/apple -maxdepth 4 \( -name '*.xcodeproj' -o -name '*.xcworkspace' -o -name '*.xcscheme' \) -print
       - name: Verify widget target exists (no misleading IPA without extension)
         run: |
           if ! find src-tauri/gen/apple -name '*.pbxproj' -exec grep -l 'FumiOTPWidget' {} \; | grep -q .; then
