@@ -272,6 +272,9 @@ pub fn run() {
             std::fs::create_dir_all(&dir)?;
             let db = Arc::new(db::Db::open(&dir.join("fumi.db"))?);
             let engine = Engine::new(db.clone(), app.handle().clone());
+            // Mobile platforms suspend background execution. Do not rely on
+            // long-running IMAP IDLE tasks to deliver notifications on iOS.
+            #[cfg(not(mobile))]
             for account in db.accounts()? {
                 engine.start_watch(account);
             }
