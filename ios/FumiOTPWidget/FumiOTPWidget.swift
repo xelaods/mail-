@@ -40,7 +40,8 @@ private struct Provider: TimelineProvider {
         let next = current.payload.map {
             Date(timeIntervalSince1970: $0.receivedAt + 15 * 60)
         } ?? Date().addingTimeInterval(15 * 60)
-        completion(Timeline(entries: [current], policy: .after(max(next, Date().addingTimeInterval(60)))))
+        let expired = OTPEntry(date: next, payload: nil, privacy: current.privacy)
+        completion(Timeline(entries: [current, expired], policy: .after(max(next, Date().addingTimeInterval(60)))))
     }
 
     private func read() -> OTPEntry {
