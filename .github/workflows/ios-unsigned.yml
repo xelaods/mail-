@@ -1,0 +1,67 @@
+name: iOS unsigned IPA (validation)
+on:
+  push:
+    branches: [feature/ios-foundation]
+    paths:
+      - 'src/**'
+      - 'src-tauri/**'
+      - 'ios/**'
+      - 'package*.json'
+      - '.github/workflows/ios-unsigned.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unsigned-ipa:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+      - name: Install build prerequisites
+        run: |
+          brew list cocoapods >/dev/null 2>&1 || brew install cocoapods
+          npm ci
+      - name: Validate frontend
+        run: npm run build
+      - name: Generate iOS workspace
+        run: npx tauri ios init --ci
+      - name: Inspect generated schemes
+        run: find src-tauri/gen/apple -maxdepth 4 \( -name '*.xcodeproj' -o -name '*.xcworkspace' -o -name '*.xcscheme' \) -print
+      - name: Verify widget target exists (no misleading IPA without extension)
+        run: |
+          if ! find src-tauri/gen/apple -name '*.pbxproj' -exec grep -l 'FumiOTPWidget' {} \; | grep -q .; then
+            echo "::error::WidgetKit extension has not yet been integrated into the generated Xcode project."
+            echo "An IPA built without the OTP widget would not fulfill the requested feature."
+            exit 1
+          fi
+      - name: Build unsigned iPhone application
+        run: |
+          set -euo pipefail
+          WORKSPACE=$(find src-tauri/gen/apple -name '*.xcworkspace' -type d | head -n 1)
+          test -n "$WORKSPACE"
+          xcodebuild -workspace "$WORKSPACE" -scheme Fumi -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/fumi-build" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+      - name: Package unsigned IPA
+        run: |
+          set -euo pipefail
+          APP=$(find "$RUNNER_TEMP/fumi-build/Build/Products/Release-iphoneos" -maxdepth 1 -name '*.app' -type d | head -n 1)
+          test -n "$APP"
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/"
+          (cd "$RUNNER_TEMP/ipa" && zip -q -r "$GITHUB_WORKSPACE/Fumi-unsigned.ipa" Payload)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Fumi-unsigned-iOS
+          path: Fumi-unsigned.ipa
+          if-no-files-found: error

@@ -8,6 +8,7 @@ mod oauth;
 mod parcels;
 mod secrets;
 mod smtp;
+mod widget_plugin;
 
 use std::sync::Arc;
 
@@ -51,6 +52,7 @@ async fn register(engine: &Arc<Engine>, provider: Provider, email: String, name:
     secrets::set_password(&account.id, secret).map_err(err)?;
     engine.db.insert_account(&account).map_err(err)?;
     engine.refresh_mailboxes(&account).await.map_err(err)?;
+    #[cfg(not(mobile))]
     engine.start_watch(account.clone());
     Ok(account)
 }
@@ -107,6 +109,7 @@ async fn reauth_google_account(state: State<'_, AppState>, id: String) -> Res<()
     secrets::set_password(&account.id, &secret).map_err(err)?;
     engine.forget_credentials(&account.id);
     engine.stop_watch(&account.id);
+    #[cfg(not(mobile))]
     engine.start_watch(account);
     Ok(())
 }
@@ -180,6 +183,26 @@ async fn sync_all(state: State<'_, AppState>) -> Res<()> {
     }
     if errors.is_empty() { Ok(()) } else { Err(errors.join("\n")) }
 }
+
+/// Latest verification code already indexed by Fumi, for the iOS widget bridge.
+/// Never returns the authentication link or email body.
+#[tauri::command]
+async fn latest_widget_otp(state: State<'_, AppState>) -> Res<Option<WidgetOtp>> {
+    let q = ViewQuery { kind: "unified".into(), role: Some("codes".into()), account_id: None,
+        path: None, search: None, limit: Some(30), offset: Some(0) };
+    let now = chrono::Utc::now().timestamp();
+    let found = state.engine.db.list(&q).map_err(err)?
+        .into_iter()
+        .filter(|m| !m.otp_code.is_empty() && m.date <= now && now - m.date < 900)
+        .max_by_key(|m| m.date);
+    Ok(found.map(|m| WidgetOtp { code: m.otp_code, sender: m.from_name,
+        received_at: m.date }))
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WidgetOtp { code: String, sender: String, received_at: i64 }
+
 
 #[tauri::command]
 async fn refresh_folders(state: State<'_, AppState>, account_id: String) -> Res<()> {
@@ -263,6 +286,7 @@ pub fn run() {
     let _ = tokio_rustls::rustls::crypto::ring::default_provider().install_default();
 
     tauri::Builder::default()
+        .plugin(widget_plugin::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
@@ -272,6 +296,9 @@ pub fn run() {
             std::fs::create_dir_all(&dir)?;
             let db = Arc::new(db::Db::open(&dir.join("fumi.db"))?);
             let engine = Engine::new(db.clone(), app.handle().clone());
+            // Mobile platforms suspend background execution. Do not rely on
+            // long-running IMAP IDLE tasks to deliver notifications on iOS.
+            #[cfg(not(mobile))]
             for account in db.accounts()? {
                 engine.start_watch(account);
             }
@@ -289,6 +316,7 @@ pub fn run() {
             list_mailboxes,
             list_parcels,
             list_messages,
+            latest_widget_otp,
             get_thread,
             sync_mailbox,
             sync_all,

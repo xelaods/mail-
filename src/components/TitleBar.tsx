@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Minus, PanelLeft, RefreshCw, Search, Settings2, Square, X } from "lucide-react";
 import { useNarrow } from "../hooks/useNarrow";
+import { useMobile } from "../hooks/useMobile";
+import { setWidgetCodeVisibility } from "../lib/widgetSync";
 import { LatestCodePill } from "./Codes";
 import { useStore } from "../lib/store";
 import { useShallow } from "zustand/react/shallow";
@@ -22,6 +24,8 @@ async function closeWindow() {
 
 export function TitleBar() {
   const narrow = useNarrow();
+  const mobile = useMobile();
+  const [showWidgetCode, setShowWidgetCode] = useState(() => window.localStorage.getItem("fumi-widget-code-visible") === "yes");
   const sidebarOpen = useStore((s) => s.sidebarOpen);
   const setSidebarOpen = useStore((s) => s.setSidebarOpen);
   const search = useStore((s) => s.search);
@@ -52,7 +56,7 @@ export function TitleBar() {
   return (
     <header
       data-tauri-drag-region
-      className="relative z-30 flex h-[48px] shrink-0 items-center gap-3 pl-5"
+      className="relative z-30 flex h-[48px] shrink-0 items-center gap-2 pl-4 pr-3 max-[600px]:h-[54px]"
       onDoubleClick={(e) => {
         if ((e.target as HTMLElement).hasAttribute("data-tauri-drag-region")) windowAction("maximize");
       }}
@@ -125,6 +129,7 @@ export function TitleBar() {
 
       <div className="flex items-center gap-0.5">
         <LatestCodePill />
+        {mobile && <button type="button" className="rounded-lg px-2 py-1 text-xs text-fg" title="ホーム画面の認証コード表示" onClick={() => { const next = !showWidgetCode; setShowWidgetCode(next); void setWidgetCodeVisibility(next); }}>{showWidgetCode ? "コード表示中" : "コードを表示"}</button>}
         {errors.length > 0 && (
           <button
             onClick={() => setDialog("settings")}
@@ -150,7 +155,7 @@ export function TitleBar() {
         </IconButton>
       </div>
 
-      <div className="ml-1 flex h-full items-stretch">
+      <div className="ml-1 flex h-full items-stretch max-[600px]:hidden">
         <WinButton label="最小化" onClick={() => windowAction("minimize")}>
           <Minus className="size-4" strokeWidth={1.5} />
         </WinButton>

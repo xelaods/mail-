@@ -120,7 +120,7 @@ export function MessageList() {
   const pull = usePullToRefresh(parentRef, syncNow);
 
   return (
-    <section className="relative flex w-[392px] shrink-0 flex-col border-r border-line-subtle max-[1280px]:w-[340px] max-[980px]:w-[300px]">
+    <section className="relative flex min-h-0 w-[392px] shrink-0 flex-col border-r border-line-subtle max-[1280px]:w-[340px] max-[980px]:w-[300px] max-[600px]:w-full max-[600px]:flex-1 max-[600px]:border-r-0">
       <header className="flex shrink-0 items-end justify-between gap-3 px-5 pb-3 pt-5">
         <div className="min-w-0">
           <motion.h1
