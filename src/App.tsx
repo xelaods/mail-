@@ -3,6 +3,7 @@ import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { useNarrow } from "./hooks/useNarrow";
 import { useMobile } from "./hooks/useMobile";
 import { useStore } from "./lib/store";
+import { startWidgetSync } from "./lib/widgetSync";
 import { useShortcuts } from "./hooks/useShortcuts";
 import { TitleBar } from "./components/TitleBar";
 import { Sidebar } from "./components/Sidebar";
@@ -46,6 +47,7 @@ export default function App() {
 
   useEffect(() => {
     init();
+    return startWidgetSync();
   }, [init]);
 
   useEffect(() => {
