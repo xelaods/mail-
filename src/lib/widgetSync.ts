@@ -2,7 +2,13 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { api, isTauri } from "./api";
 
-type WidgetOTP = { code: string; sender: string; receivedAt: number };
+export async function setWidgetCodeVisibility(visible: boolean): Promise<void> {
+  window.localStorage.setItem("fumi-widget-code-visible", visible ? "yes" : "no");
+  if (isTauri && /iPhone|iPad|iPod/.test(navigator.userAgent)) {
+    await invoke("plugin:fumi-widget|setHidden", { hidden: !visible });
+  }
+}
+
 
 /**
  * Synchronize short-lived OTP data to the native iOS WidgetKit extension.
@@ -32,6 +38,9 @@ export function startWidgetSync(): () => void {
       console.warn("Fumi widget sync unavailable", err instanceof Error ? err.message : "unknown");
     }
   };
+  void invoke("plugin:fumi-widget|setHidden", {
+    hidden: window.localStorage.getItem("fumi-widget-code-visible") !== "yes",
+  }).catch(() => {});
   void publish();
   for (const event of ["mail-changed", "otp-received"]) {
     void listen(event, publish).then((unlisten) => {
