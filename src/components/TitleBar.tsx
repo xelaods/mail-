@@ -52,7 +52,7 @@ export function TitleBar() {
   return (
     <header
       data-tauri-drag-region
-      className="relative z-30 flex h-[48px] shrink-0 items-center gap-3 pl-5"
+      className="relative z-30 flex h-[48px] shrink-0 items-center gap-2 pl-4 pr-3 max-[600px]:h-[54px]"
       onDoubleClick={(e) => {
         if ((e.target as HTMLElement).hasAttribute("data-tauri-drag-region")) windowAction("maximize");
       }}
@@ -150,7 +150,7 @@ export function TitleBar() {
         </IconButton>
       </div>
 
-      <div className="ml-1 flex h-full items-stretch">
+      <div className="ml-1 flex h-full items-stretch max-[600px]:hidden">
         <WinButton label="最小化" onClick={() => windowAction("minimize")}>
           <Minus className="size-4" strokeWidth={1.5} />
         </WinButton>
