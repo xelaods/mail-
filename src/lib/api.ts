@@ -33,6 +33,7 @@ export const api = {
   listMailboxes: () => call<MailboxInfo[]>("list_mailboxes"),
   listParcels: () => call<ParcelInfo[]>("list_parcels"),
   listMessages: (query: ViewQuery) => call<MessageSummary[]>("list_messages", { query }),
+  latestWidgetOtp: () => call<{ code: string; sender: string; receivedAt: number } | null>("latest_widget_otp"),
   getThread: (id: number) => call<MessageDetail[]>("get_thread", { id }),
   syncMailbox: (accountId: string, path: string) => call<void>("sync_mailbox", { accountId, path }),
   syncAll: () => call<void>("sync_all"),
